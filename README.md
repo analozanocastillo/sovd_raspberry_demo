@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-# sovd_raspberry_demo
-SOVD prototype running on a Raspberry Pi, exposing diagnostic-style data through a RESTful HTTP server.
-=======
+<<<<<<< HEAD# sovd_raspberry_demo
 # SOVD Raspberry Demo
 
 Mini demo project to simulate a **SOVD-like diagnostic server** running on a Raspberry Pi.
@@ -27,11 +24,14 @@ The focus of the project is to understand:
 ---
 
 ## 🧩 Architecture
+```text
 sovd-raspberry-demo/
 ├── server.py        # Python SOVD-like diagnostic server
 ├── index.html       # Web dashboard (HTML/CSS/JS)
 ├── Dockerfile       # Optional container build
 └── README.md
+```
+
 
 The project follows a **simple client–server model**:
 - `server.py` exposes diagnostic data as REST endpoints
@@ -47,4 +47,45 @@ From the project root directory:
 
 ```bash
 python3 server.py
+<<<<<<< HEAD
 >>>>>>> c7cd5aa (Initial version)
+=======
+```
+You should see:
+
+```bash
+SOVD demo server running on port 5000
+```
+
+
+### 2️⃣ Open the web interface
+From a PC or from the Raspberry Pi browser, open: 
+```bash
+http://172.20.10.2:5000/
+```
+
+
+## 🖥️ Web Interface
+The web dashboard (index.html) allows you to:
+
+- Check system health
+- Visualize available ECUs
+- Read vehicle identification data
+- Read ECU software information
+
+The UI communicates with the backend **via REST API calls**.
+
+
+## 🎯 Project Goals
+
+- Simulate a SOVD-like diagnostic server
+- Understand REST-based diagnostics over HTTP
+- Practice embedded development using Raspberry Pi
+- Separate backend logic from UI visualization
+
+## 🚫 Limitations
+
+- This is not a full ASAM SOVD implementation
+- No authentication or security mechanisms are implemented
+- Intended only for learning and demonstration purposes
+>>>>>>> b68653f (Update README for professional SOVD dashboard)
