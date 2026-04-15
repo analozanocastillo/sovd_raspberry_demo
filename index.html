@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SOVD Vehicle Dashboard</title>
+
+<style>
+:root {
+    --bg: #0b1220;
+    --panel: #111827;
+    --card: #1f2937;
+    --accent: #38bdf8;
+    --text: #e5e7eb;
+    --subtext: #9ca3af;
+    --ok: #22c55e;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: linear-gradient(180deg, #020617, #020617);
+    color: var(--text);
+}
+
+/* HEADER */
+header {
+    padding: 20px 40px;
+    border-bottom: 1px solid #1e293b;
+}
+
+header h1 {
+    margin: 0;
+    font-weight: 500;
+    letter-spacing: 1px;
+}
+
+header span {
+    font-size: 12px;
+    color: var(--subtext);
+}
+
+/* LAYOUT */
+.dashboard {
+    padding: 40px;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 30px;
+}
+
+.left, .right {
+    display: grid;
+    gap: 25px;
+}
+
+/* CAR VISUAL */
+.car-visual {
+    background: radial-gradient(circle at top, #0f172a, #020617);
+    border-radius: 16px;
+    padding: 30px;
+    text-align: center;
+}
+
+.car-visual svg {
+    width: 100%;
+    max-width: 400px;
+    opacity: 0.9;
+}
+
+/* CARD */
+.card {
+    background: linear-gradient(180deg, var(--card), #020617);
+    border-radius: 16px;
+    padding: 20px 25px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+}
+
+.card h2 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 500;
+    border-bottom: 1px solid #1e293b;
+    padding-bottom: 10px;
+}
+
+/* DATA ROWS */
+.row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 14px;
+}
+
+.row span:last-child {
+    color: var(--accent);
+}
+
+/* BUTTONS */
+button {
+    margin-top: 15px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    color: black;
+    border: none;
+    border-radius: 20px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+/* FOOTER */
+footer {
+    text-align: center;
+    padding: 20px;
+    color: var(--subtext);
+    font-size: 12px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>SOVD VEHICLE DASHBOARD</h1>
+    <span>Diagnostic Interface · Raspberry Pi · Study Project</span>
+</header>
+
+<div class="dashboard">
+
+    <!-- LEFT COLUMN -->
+    <div class="left">
+
+        <!-- VEHICLE INFO -->
+        <div class="card">
+            <h2>Vehicle Identity</h2>
+
+            <div class="row"><span>VIN</span><span id="vin">—</span></div>
+            <div class="row"><span>Mileage</span><span id="mileage">— km</span></div>
+            <div class="row"><span>Battery Voltage</span><span id="voltage">— V</span></div>
+            <div class="row"><span>Status</span><span class="ok">Operational</span></div>
+
+            <button onclick="readVehicle()">READ VEHICLE</button>
+        </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="right">
+
+        <!-- ENGINE ECU -->
+        <div class="card">
+            <h2>Engine ECU</h2>
+
+            <div class="row"><span>ECU ID</span><span>ENGINE_ECU</span></div>
+            <div class="row"><span>Software Version</span><span id="sw">—</span></div>
+            <div class="row"><span>Hardware Version</span><span>HW‑A03</span></div>
+            <div class="row"><span>Temperature</span><span id="temp">— °C</span></div>
+            <div class="row"><span>DTC Count</span><span id="dtc">—</span></div>
+            <div class="row"><span>Status</span><span class="ok">OK</span></div>
+
+            <button onclick="readECU()">READ ECU</button>
+        </div>
+
+        <!-- SYSTEM -->
+        <div class="card">
+            <h2>System</h2>
+            <div class="row"><span>Architecture</span><span>SOVD‑like REST</span></div>
+            <div class="row"><span>Transport</span><span>HTTP / JSON</span></div>
+            <div class="row"><span>Server</span><span>Raspberry Pi</span></div>
+        </div>
+
+    </div>
+
+</div>
+
+<footer>
+    Educational SOVD Dashboard · Not a real vehicle
+</footer>
+
+<script>
+function readVehicle() {
+    fetch("/components/engine/data/vin")
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById("vin").textContent = data.vin;
+        });
+
+    document.getElementById("mileage").textContent = "124300";
+    document.getElementById("voltage").textContent = "12.4";
+}
+
+function readECU() {
+    fetch("/components/engine/data/swversion")
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById("sw").textContent = data.swversion;
+        });
+
+    document.getElementById("temp").textContent = "85";
+    document.getElementById("dtc").textContent = "0";
+}
+</script>
+
+</body>
+</html>
