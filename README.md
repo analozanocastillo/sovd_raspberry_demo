@@ -46,9 +46,6 @@ From the project root directory:
 
 ```bash
 python3 server.py
-<<<<<<< HEAD
->>>>>>> c7cd5aa (Initial version)
-=======
 ```
 You should see:
 
