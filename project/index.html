@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SOVD Vehicle Diagnostics Dashboard</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f4f6f8;
+    color: #333;
+}
+
+header {
+    background: linear-gradient(135deg, #3f51b5, #2196f3);
+    color: white;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+section {
+    max-width: 1100px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+
+.card {
+    background: white;
+    border-radius: 10px;
+    padding: 25px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+.card h2 {
+    margin-top: 0;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.data-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.data-row:last-child {
+    border-bottom: none;
+}
+
+.actions button {
+    margin: 8px;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 20px;
+    background: #2196f3;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.actions button.off {
+    background: #f44336;
+}
+
+.tag {
+    padding: 4px 10px;
+    border-radius: 15px;
+    font-size: 12px;
+    color: white;
+}
+
+.tag.ok {
+    background: #4caf50;
+}
+
+.tag.warn {
+    background: #f44336;
+}
+
+ul {
+    padding-left: 20px;
+}
+
+footer {
+    text-align: center;
+    font-size: 12px;
+    padding: 30px;
+    color: #666;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>SOVD Vehicle Diagnostics</h1>
+    <p>Service‑Oriented Vehicle Diagnostics – Full Simulation</p>
+</header>
+
+<section>
+
+    <!-- VEHICLE STATE -->
+    <div class="card">
+        <h2>Vehicle State</h2>
+        <div class="grid">
+            <div>
+                <div class="data-row"><span>Vehicle ID</span><span id="vehicle_id">—</span></div>
+                <div class="data-row"><span>Brand</span><span id="brand">—</span></div>
+                <div class="data-row"><span>Model</span><span id="model">—</span></div>
+            </div>
+            <div>
+                <div class="data-row"><span>Ignition</span><span id="ignition">—</span></div>
+                <div class="data-row"><span>Uptime</span><span id="uptime">— s</span></div>
+                <div class="data-row"><span>Ambient Temp</span><span id="ambient_temp">— °C</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- POWER -->
+    <div class="card">
+        <h2>Power System</h2>
+        <div class="grid">
+            <div class="data-row"><span>Battery Voltage</span><span id="battery_voltage">— V</span></div>
+            <div class="data-row"><span>Battery Current</span><span id="battery_current">— A</span></div>
+            <div class="data-row"><span>Power Mode</span><span id="power_mode">—</span></div>
+        </div>
+    </div>
+
+    <!-- ENGINE IDENT -->
+    <div class="card">
+        <h2>Engine ECU – Identification</h2>
+        <div class="grid">
+            <div class="data-row"><span>VIN</span><span id="vin">—</span></div>
+            <div class="data-row"><span>HW Version</span><span id="hw">—</span></div>
+            <div class="data-row"><span>SW Version</span><span id="sw">—</span></div>
+        </div>
+    </div>
+
+    <!-- ENGINE RUNTIME -->
+    <div class="card">
+        <h2>Engine ECU – Runtime</h2>
+        <div class="grid">
+            <div class="data-row"><span>RPM</span><span id="rpm">—</span></div>
+            <div class="data-row"><span>Engine Load</span><span id="load">— %</span></div>
+            <div class="data-row"><span>Coolant Temp</span><span id="coolant">— °C</span></div>
+        </div>
+    </div>
+
+    <!-- ENGINE SENSORS -->
+    <div class="card">
+        <h2>Engine ECU – Sensors</h2>
+        <div class="grid">
+            <div class="data-row"><span>Throttle Position</span><span id="throttle">— %</span></div>
+            <div class="data-row"><span>Air Temp</span><span id="air_temp">— °C</span></div>
+            <div class="data-row"><span>Oil Pressure</span><span id="oil_pressure">— bar</span></div>
+        </div>
+    </div>
+
+    <!-- FAULTS -->
+    <div class="card">
+        <h2>Diagnostic Faults</h2>
+        <span id="fault_status" class="tag ok">NO FAULTS</span>
+        <ul id="fault_list"></ul>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="card actions">
+        <h2>Simulation Controls</h2>
+        <button onclick="ignitionOn()">Ignition ON</button>
+        <button class="off" onclick="ignitionOff()">Ignition OFF</button>
+        <button onclick="faultsOn()">Activate Faults</button>
+        <button class="off" onclick="faultsOff()">Clear Faults</button>
+        <button onclick="refreshAll()">Refresh Data</button>
+    </div>
+
+</section>
+
+<footer>
+    Full SOVD Simulation · Raspberry Pi · Educational Project
+</footer>
+
+<script>
+function refreshAll() {
+
+    fetch("/vehicle").then(r=>r.json()).then(d=>{
+        vehicle_id.innerText = d.id;
+        brand.innerText = d.brand;
+        model.innerText = d.model;
+        ignition.innerText = d.ignition;
+        uptime.innerText = d.uptime_s;
+        ambient_temp.innerText = d.ambient_temp_c;
+    });
+
+    fetch("/vehicle/power").then(r=>r.json()).then(d=>{
+        battery_voltage.innerText = d.battery_voltage;
+        battery_current.innerText = d.battery_current;
+        power_mode.innerText = d.power_mode;
+    });
+
+    fetch("/components/engine/ident").then(r=>r.json()).then(d=>{
+        vin.innerText = d.vin;
+        hw.innerText = d.hw_version;
+        sw.innerText = d.sw_version;
+    });
+
+    fetch("/components/engine/runtime").then(r=>r.json()).then(d=>{
+        rpm.innerText = d.rpm;
+        load.innerText = d.engine_load;
+        coolant.innerText = d.coolant_temp_c;
+    });
+
+    fetch("/components/engine/sensors").then(r=>r.json()).then(d=>{
+        throttle.innerText = d.throttle_pos;
+        air_temp.innerText = d.air_temp_c;
+        oil_pressure.innerText = d.oil_pressure_bar;
+    });
+
+    fetch("/components/engine/faults").then(r=>r.json()).then(d=>{
+        const list = document.getElementById("fault_list");
+        list.innerHTML = "";
+
+        if (d.faults.length === 0) {
+            fault_status.className = "tag ok";
+            fault_status.innerText = "NO FAULTS";
+        } else {
+            fault_status.className = "tag warn";
+            fault_status.innerText = "FAULTS ACTIVE";
+            d.faults.forEach(f=>{
+                const li = document.createElement("li");
+                li.innerText = f.code + " – " + f.description;
+                list.appendChild(li);
+            });
+        }
+    });
+}
+
+function ignitionOn(){ fetch("/ignition/on").then(refreshAll); }
+function ignitionOff(){ fetch("/ignition/off").then(refreshAll); }
+function faultsOn(){ fetch("/faults/on").then(refreshAll); }
+function faultsOff(){ fetch("/faults/off").then(refreshAll); }
+
+refreshAll();
+</script>
+
+</body>
+</html>
