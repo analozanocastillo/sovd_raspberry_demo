@@ -1,4 +1,3 @@
-<<<<<<< HEAD# sovd_raspberry_demo
 # SOVD Raspberry Demo
 
 Mini demo project to simulate a **SOVD-like diagnostic server** running on a Raspberry Pi.
@@ -88,4 +87,3 @@ The UI communicates with the backend **via REST API calls**.
 - This is not a full ASAM SOVD implementation
 - No authentication or security mechanisms are implemented
 - Intended only for learning and demonstration purposes
->>>>>>> b68653f (Update README for professional SOVD dashboard)
