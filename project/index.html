@@ -2,203 +2,396 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SOVD Vehicle Diagnostics Dashboard</title>
 
 <style>
+:root {
+    --bg-main: #1e2530; /* Gris técnico industrial */
+    --bg-card: #2a3241; /* Tarjetas en contraste suave */
+    --border-color: #3f4a5f;
+    --text-main: #ffffff;
+    --text-muted: #a0aec0;
+    --accent-blue: #38bdf8;
+    --accent-green: #2ecc71;
+    --accent-red: #e74c3c;
+}
+
 body {
     margin: 0;
-    font-family: Calibri, Helvetica, sans-serif;
-    background: #f4f6f8;
-    color: #333;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    transition: background 0.5s ease; /* Permite la transición de color de fondo del body */
 }
 
 header {
-    background: linear-gradient(135deg, #3f51b5, #3999e8);
-    color: white;
-    padding: 40px 20px;
+    background-color: #171d26;
+    border-bottom: 1px solid var(--border-color);
+    padding: 25px 20px;
     text-align: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text-main);
+}
+
+header p {
+    margin: 6px 0 0 0;
+    color: var(--accent-blue);
+    font-size: 0.9rem;
+    font-weight: 500;
 }
 
 section {
     max-width: 1100px;
-    margin: 40px auto;
+    margin: 30px auto;
     padding: 0 20px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+@media (max-width: 850px) {
+    section { grid-template-columns: 1fr; }
+    .full-width { grid-column: span 1 !important; }
+}
+
+.full-width {
+    grid-column: span 2;
 }
 
 .card {
-    background: white;
-    border-radius: 10px;
-    padding: 25px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.1);
-    margin-bottom: 30px;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .card h2 {
     margin-top: 0;
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 10px;
+    margin-bottom: 18px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent-blue);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
 }
 
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
 }
 
-.data-row {
+@media (max-width: 550px) {
+    .grid { grid-template-columns: 1fr; }
+}
+
+.data-item {
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.02);
+    padding: 12px;
+    border-radius: 6px;
     display: flex;
     justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #eee;
+    align-items: center;
 }
 
-.data-row:last-child {
-    border-bottom: none;
+.data-label {
+    color: var(--text-muted);
+    font-size: 0.85rem;
 }
 
-.actions button, .card button {
-    margin: 8px 0;
-    padding: 12px 20px;
-    border: none;
-    border-radius: 20px;
-    background: #7ebddb;
-    color: white;
+.data-value {
+    font-family: 'Consolas', Monaco, monospace;
     font-weight: bold;
-    cursor: pointer;
+    font-size: 1rem;
 }
 
-.actions button.off {
-    background: #f44336;
+/* Indicadores LED */
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--text-muted);
+}
+
+.dot.active-green {
+    background-color: var(--accent-green);
+    box-shadow: 0 0 8px var(--accent-green);
+}
+
+.dot.active-red {
+    background-color: var(--accent-red);
+    box-shadow: 0 0 8px var(--accent-red);
+}
+
+/* Terminal UDS */
+.diagnostic-box {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.selector-group {
+    display: flex;
+    gap: 10px;
 }
 
 select {
-    padding: 6px;
+    flex-grow: 1;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    outline: none;
 }
 
-.tag {
-    padding: 4px 10px;
-    border-radius: 15px;
-    font-size: 12px;
+.terminal-window {
+    background-color: #141820;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: 'Consolas', 'Lucida Console', monospace;
+    font-size: 0.85rem;
+    min-height: 80px;
+    max-height: 140px;
+    overflow-y: auto;
+}
+
+.terminal-line {
+    margin: 4px 0;
+}
+
+.term-tx { color: #f39c12; }
+.term-rx { color: var(--accent-green); }
+.term-err { color: var(--accent-red); }
+.term-info { color: var(--accent-blue); }
+
+/* Botonera */
+.control-panel {
+    display: flex;
+    gap: 12px;
+}
+
+button {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.1s ease;
+}
+
+.btn-primary { background-color: #3498db; color: white; }
+.btn-primary:hover { background-color: #2980b9; }
+
+.btn-success { background-color: #2ecc71; color: white; }
+.btn-success:hover { background-color: #27ae60; }
+
+.btn-danger { background-color: #e74c3c; color: white; }
+.btn-danger:hover { background-color: #c0392b; }
+
+/* === TU POP-UP ORIGINAL CON TUS GRADIENTES PROPIOS === */
+.popup {
+    position: fixed;
+    top: 30px;
+    right: -400px;
+    background: #333;
     color: white;
+    padding: 25px 40px;
+    border-radius: 12px;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+    transition: right 0.5s ease;
+    font-weight: bold;
+    font-size: 18px;
+    z-index: 9999; /* Asegura que se dibuje por encima de las tarjetas */
 }
 
-.tag.ok {
-    background: #4caf50;
+.popup.show {
+    right: 30px;
 }
 
-.tag.warn {
-    background: #f44336;
+.popup.fault {
+    background: linear-gradient(135deg, #ff4d4d, #b30000);
+    animation: pulse 1s infinite;
 }
 
-ul {
-    padding-left: 20px;
+.popup.ok {
+    background: linear-gradient(135deg, #00cc66, #00994d);
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.05); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
 footer {
     text-align: center;
-    font-size: 12px;
+    font-size: 0.8rem;
     padding: 30px;
-    color: #666;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border-color);
+    margin-top: 40px;
 }
 </style>
 </head>
 
 <body>
 
+<div id="popup" class="popup"></div>
+
 <header>
     <h1>SOVD Vehicle Diagnostics</h1>
-    <p>Service‑Oriented Vehicle Diagnostics – Full Simulation</p>
+    <p>Service‑Oriented Vehicle Diagnostics Simulation</p>
 </header>
 
 <section>
 
-<div class="card">
-    <h2>Vehicle State</h2>
-    <div class="grid">
-        <div>
-            <div class="data-row"><span>Vehicle ID</span><span id="vehicle_id">—</span></div>
-            <div class="data-row"><span>Brand</span><span id="brand">—</span></div>
-            <div class="data-row"><span>Model</span><span id="model">—</span></div>
+    <div class="card">
+        <h2>Vehicle Identity</h2>
+        <div class="grid">
+            <div class="data-item"><span class="data-label">Vehicle ID</span><span class="data-value" id="vehicle_id">—</span></div>
+            <div class="data-item"><span class="data-label">Brand</span><span class="data-value" id="brand">—</span></div>
+            <div class="data-item"><span class="data-label">Model</span><span class="data-value" id="model">—</span></div>
+            <div class="data-item">
+                <span class="data-label">Ignition State</span>
+                <span class="status-indicator data-value">
+                    <span id="ignition_dot" class="dot"></span>
+                    <span id="ignition">—</span>
+                </span>
+            </div>
+            <div class="data-item"><span class="data-label">Uptime</span><span class="data-value" id="uptime">— s</span></div>
+            <div class="data-item"><span class="data-label">Ambient Temp</span><span class="data-value" id="ambient_temp" style="color: #f39c12;">— °C</span></div>
         </div>
-        <div>
-            <div class="data-row"><span>Ignition</span><span id="ignition">—</span></div>
-            <div class="data-row"><span>Uptime</span><span id="uptime">— s</span></div>
-            <div class="data-row"><span>Ambient Temp</span><span id="ambient_temp">— °C</span></div>
+    </div>
+
+    <div class="card">
+        <h2>Power & Bus Telemetry</h2>
+        <div class="grid">
+            <div class="data-item"><span class="data-label">Battery Voltage</span><span class="data-value" id="battery_voltage" style="color: #38bdf8;">— V</span></div>
+            <div class="data-item"><span class="data-label">Battery Current</span><span class="data-value" id="battery_current" style="color: var(--accent-green);">— A</span></div>
+            <div class="data-item" style="grid-column: span 2;"><span class="data-label">Power Mode</span><span class="data-value" id="power_mode">—</span></div>
         </div>
     </div>
-</div>
 
-<div class="card">
-    <h2>Power System</h2>
-    <div class="grid">
-        <div class="data-row"><span>Battery Voltage</span><span id="battery_voltage">— V</span></div>
-        <div class="data-row"><span>Battery Current</span><span id="battery_current">— A</span></div>
-        <div class="data-row"><span>Power Mode</span><span id="power_mode">—</span></div>
-    </div>
-</div>
-
-<div class="card">
-    <h2>UDS Diagnostic – ReadDataByIdentifier</h2>
-
-    <div class="data-row">
-        <span>Select DID</span>
-        <select id="did_select">
-            <option value="F190">F190 – VIN</option>
-            <option value="F187">F187 – Software Version</option>
-            <option value="F18C">F18C – Hardware Version</option>
-            <option value="F40C">F40C – Engine RPM</option>
-            <option value="F40D">F40D – Engine Load</option>
-            <option value="F40E">F40E – Coolant Temperature</option>
-        </select>
+    <div class="card full-width">
+        <h2>UDS Diagnostic Layer</h2>
+        <div class="diagnostic-box">
+            <div class="selector-group">
+                <select id="did_select">
+                    <option value="F190">F190 – VIN (Vehicle Identification Number)</option>
+                    <option value="F187">F187 – ECU Software Version Number</option>
+                    <option value="F18C">F18C – ECU Hardware Version Number</option>
+                    <option value="F40C">F40C – Current Engine RPM</option>
+                    <option value="F40D">F40D – Engine Load Value</option>
+                    <option value="F40E">F40E – Engine Coolant Temperature</option>
+                </select>
+                <button class="btn-primary" onclick="readDid()">Execute ReadDID</button>
+            </div>
+            
+            <div class="terminal-window" id="terminal_console">
+                <div class="terminal-line term-info">> Diagnostic session initialized. Waiting for Request...</div>
+            </div>
+        </div>
     </div>
 
-    <button onclick="readDid()">Read DID</button>
-
-    <div class="data-row">
-        <span>Result</span>
-        <span id="did_result">—</span>
+    <div class="card full-width">
+        <h2>Simulation Controls</h2>
+        <div class="control-panel">
+            <button class="btn-success" onclick="ignitionOn()">⚡ Ignition ON</button>
+            <button class="btn-danger" onclick="ignitionOff()">🛑 Ignition OFF</button>
+        </div>
     </div>
-</div>
-
-<div class="card actions">
-    <h2>Simulation Controls</h2>
-    <button onclick="ignitionOn()">Ignition ON</button>
-    <button class="off" onclick="ignitionOff()">Ignition OFF</button>
-    <button onclick="refreshAll()">Refresh Data</button>
-</div>
 
 </section>
 
 <footer>
-    SOVD Simulation · Raspberry Pi
+    SOVD Simulation Framework • Raspberry Pi Edge Node
 </footer>
 
 <script>
 const BASE_URL = window.location.origin;
+const terminalConsole = document.getElementById("terminal_console");
+const popup = document.getElementById("popup");
+
+function appendTerminalLine(text, type = "info") {
+    const time = new Date().toLocaleTimeString();
+    const line = document.createElement("div");
+    line.className = `terminal-line term-${type}`;
+    line.innerText = `[${time}] ${text}`;
+    terminalConsole.appendChild(line);
+    terminalConsole.scrollTop = terminalConsole.scrollHeight;
+}
+
+function updateIgnitionVisual(state) {
+    const dot = document.getElementById("ignition_dot");
+    if(state && state.toUpperCase() === "ON") {
+        dot.className = "dot active-green";
+    } else {
+        dot.className = "dot active-red";
+    }
+}
+
+// TU FUNCIÓN POPUP ORIGINAL (Duración de 3 segundos tal cual)
+function showPopup(message, type) {
+    popup.innerHTML = message;
+    popup.className = "popup show " + type;
+
+    setTimeout(() => {
+        popup.className = "popup " + type;
+    }, 3000);
+}
 
 function refreshAll() {
     fetch(`${BASE_URL}/vehicle`).then(r=>r.json()).then(d=>{
-        vehicle_id.innerText = d.id;
-        brand.innerText = d.brand;
-        model.innerText = d.model;
-        ignition.innerText = d.ignition;
-        uptime.innerText = d.uptime_s;
-        ambient_temp.innerText = d.ambient_temp_c;
-    });
+        vehicle_id.innerText = d.id || '—';
+        brand.innerText = d.brand || '—';
+        model.innerText = d.model || '—';
+        ignition.innerText = d.ignition || '—';
+        uptime.innerText = (d.uptime_s !== undefined) ? d.uptime_s + " s" : "— s";
+        ambient_temp.innerText = (d.ambient_temp_c !== undefined) ? d.ambient_temp_c + " °C" : "— °C";
+        
+        updateIgnitionVisual(d.ignition);
+    }).catch(err => console.error("Error:", err));
 
     fetch(`${BASE_URL}/vehicle/power`).then(r=>r.json()).then(d=>{
-        battery_voltage.innerText = d.battery_voltage;
-        battery_current.innerText = d.battery_current;
-        power_mode.innerText = d.power_mode;
-    });
+        battery_voltage.innerText = (d.battery_voltage !== undefined) ? d.battery_voltage + " V" : "— V";
+        battery_current.innerText = (d.battery_current !== undefined) ? d.battery_current + " A" : "— A";
+        power_mode.innerText = d.power_mode || '—';
+    }).catch(err => console.error("Error:", err));
 }
 
-function ignitionOn(){ fetch(`${BASE_URL}/ignition/on`).then(refreshAll); }
-function ignitionOff(){ fetch(`${BASE_URL}/ignition/off`).then(refreshAll); }
+function ignitionOn(){ 
+    appendTerminalLine("Control: Requesting Ignition ON...", "info");
+    fetch(`${BASE_URL}/ignition/on`).then(refreshAll); 
+}
+function ignitionOff(){ 
+    appendTerminalLine("Control: Requesting Ignition OFF...", "info");
+    fetch(`${BASE_URL}/ignition/off`).then(refreshAll); 
+}
 
 function readDid() {
     const did = document.getElementById("did_select").value;
-    did_result.innerText = "Reading...";
+    appendTerminalLine(`→ UDS Request: ReadDataByIdentifier [DID: 0x${did}]`, "tx");
 
     fetch(`${BASE_URL}/uds/readDataByIdentifier`, {
         method: "POST",
@@ -208,24 +401,47 @@ function readDid() {
     .then(r => r.json())
     .then(d => {
         if (d.value !== undefined) {
-            did_result.innerText = d.did + " (" + d.name + "): " + d.value;
+            appendTerminalLine(`← UDS Response: Positive [Service: 0x62] [DID: 0x${did}]`, "rx");
+            appendTerminalLine(`  └─ Decoded Payload: ${d.name} = "${d.value}"`, "info");
         } else {
-            did_result.innerText = d.error;
+            appendTerminalLine(`← UDS Response: Negative [Service: 0x7F]`, "err");
+            appendTerminalLine(`  └─ Diagnostic Fault: ${d.error}`, "err");
         }
+    })
+    .catch(err => {
+        appendTerminalLine(`⚠ Protocol Error: Link down or Gateway unreachable.`, "err");
     });
 }
 
-// ===== SSE REALTIME EVENTS (LÓGICA INTERNA SIN ELEMENTOS VISUALES) =====
+// ===== EVENT SOURCE: REAL-TIME VEHICLE STATE MONITORING =====
 const eventSource = new EventSource("/events");
 
 eventSource.onmessage = function(event) {
     console.log("Evento recibido:", event.data);
+
     try {
         const data = JSON.parse(event.data);
-        if (data.fault_active === true) {
-            console.log("🚨 Fallo detectado en el vehículo");
+        const isFault = data.fault_active;
+
+        if (isFault) {
+            // Transición visual: gradiente rojo oscuro
+            document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
+            
+            // Log en terminal
+            appendTerminalLine("🚨 ASYNC FAULT: LED_REAR Disconnected", "err");
+            
+            // Popup con notificación
+            showPopup("⚠️ Fallo en LED REAR LEFT", "fault");
+
         } else {
-            console.log("✅ Sistema en estado óptimo");
+            // Transición visual: gradiente gris técnico original
+            document.body.style.background = "linear-gradient(135deg, #1c1c1c, #2c3e50)";
+            
+            // Log en terminal
+            appendTerminalLine("✅ ASYNC STATUS: System Restored", "rx");
+            
+            // Popup con notificación
+            showPopup("✅ Sistema recuperado", "ok");
         }
     } catch (e) {
         console.error("Error parseando SSE:", e);
