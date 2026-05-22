@@ -1,54 +1,98 @@
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from flask import Flask, request, jsonify, Response
 import json
-import os
-from urllib.parse import urlparse
+import time
 
-from routes.api_routes import handle_api
+from routes.api_routes import handle_api, handle_post
 from routes.ui_routes import handle_ui
+from data.vehicle_state import vehicle_state
 
 HOST = "0.0.0.0"
 PORT = 5000
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__)
 
-class Handler(BaseHTTPRequestHandler):
 
-    def _send_json(self, status, payload):
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps(payload).encode())
+# ============================
+# GET ROUTES (UI + API)
+# ============================
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def handle_get(path):
 
-    def _send_file(self, filepath, content_type="text/html; charset=utf-8"):
+    full_path = "/" + path
+
+    # ===== UI (HTML, CSS, JS) =====
+    ui = handle_ui(full_path)
+    if ui:
+        filepath, ctype = ui
         try:
             with open(filepath, "rb") as f:
                 content = f.read()
-            self.send_response(200)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(content)))
-            self.end_headers()
-            self.wfile.write(content)
+            return Response(content, content_type=ctype)
         except FileNotFoundError:
-            self._send_json(404, {"error": "File not found"})
+            return jsonify({"error": "File not found"}), 404
 
-    def do_GET(self):
-        parsed = urlparse(self.path)
-        path = parsed.path
+    # ===== API (GET endpoints) =====
+    api = handle_api(full_path)
+    if api is not None:
+        status, payload = api
+        return jsonify(payload), status
 
-        # 1) UI
-        ui = handle_ui(path)
-        if ui:
-            filepath, ctype = ui
-            return self._send_file(filepath, ctype)
+    # ===== DEFAULT =====
+    return jsonify({"error": "Not found"}), 404
 
-        # 2) API
-        api = handle_api(path)
-        if api:
-            status, payload = api
-            return self._send_json(status, payload)
 
-        # 3) Default
-        return self._send_json(404, {"error": "Not found"})
+# ============================
+# POST ROUTES (UDS, etc.)
+# ============================
+@app.route("/<path:path>", methods=["POST"])
+def handle_post_requests(path):
 
-print("SOVD demo server running on port 5000")
-HTTPServer((HOST, PORT), Handler).serve_forever()
+    full_path = "/" + path
+
+    try:
+        body = request.get_json()
+    except Exception:
+        return jsonify({"error": "Invalid JSON body"}), 400
+
+    result = handle_post(full_path, body)
+
+    if result is not None:
+        status, payload = result
+        return jsonify(payload), status
+
+    return jsonify({"error": "Not found"}), 404
+
+
+# ============================
+# SSE EVENTS (REALTIME)
+# ============================
+@app.route("/events")
+def events():
+
+    def stream():
+        last_state = None
+
+        while True:
+            current = vehicle_state.get("rear_left_light", {}).get("fault_active", False)
+
+            # ✅ Solo envía cuando cambia
+            if current != last_state:
+                last_state = current
+
+                yield f"data: {json.dumps({'fault_active': current})}\n\n"
+
+            # ✅ Keep-alive (evita timeout navegador)
+            yield ": keepalive\n\n"
+
+            time.sleep(0.5)
+
+    return Response(stream(), mimetype="text/event-stream")
+
+
+# ============================
+# RUN SERVER
+# ============================
+if __name__ == "__main__":
+    print(f"SOVD demo server running on http://{HOST}:{PORT}")
+    app.run(host=HOST, port=PORT, threaded=True, use_reloader=False)

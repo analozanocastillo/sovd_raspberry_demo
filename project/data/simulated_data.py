@@ -1,15 +1,28 @@
 DATA = {
 
-    # =====================
-    # VEHICLE GLOBAL STATE
-    # =====================
     "vehicle": {
         "id": "vehicle-001",
         "brand": "DemoMotors",
         "model": "SOVD-Edu",
-        "ignition": "OFF",      # ON / OFF
-        "uptime_s": 0,
-        "ambient_temp_c": 18.5
+        "ignition": "ON",
+        "uptime_s": 1234,
+        "ambient_temp_c": 18.5,
+
+        # --- SPEED SIMULATION ---
+        "speed_kmh": 0,
+        "speed_profile": [
+            0,
+            15,
+            30,
+            50,
+            80,
+            100,
+            120,
+            90,
+            60,
+            30,
+            0
+        ]
     },
 
     "power": {
@@ -18,9 +31,6 @@ DATA = {
         "power_mode": "NORMAL"
     },
 
-    # =====================
-    # COMPONENTS
-    # =====================
     "components": [
         {"id": "engine", "name": "Engine Control Unit"},
         {"id": "door", "name": "Door Control Unit"}
@@ -46,6 +56,7 @@ DATA = {
         "faults": [
             {"code": "P0120", "description": "Throttle position sensor fault"},
             {"code": "P0300", "description": "Random misfire detected"}
-        ]
+        ],
+
     }
 }

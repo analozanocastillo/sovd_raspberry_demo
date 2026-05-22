@@ -7,13 +7,13 @@
 <style>
 body {
     margin: 0;
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: Calibri, Helvetica, sans-serif;
     background: #f4f6f8;
     color: #333;
 }
 
 header {
-    background: linear-gradient(135deg, #3f51b5, #2196f3);
+    background: linear-gradient(135deg, #3f51b5, #3999e8);
     color: white;
     padding: 40px 20px;
     text-align: center;
@@ -56,12 +56,12 @@ section {
     border-bottom: none;
 }
 
-.actions button {
-    margin: 8px;
+.actions button, .card button {
+    margin: 8px 0;
     padding: 12px 20px;
     border: none;
     border-radius: 20px;
-    background: #2196f3;
+    background: #7ebddb;
     color: white;
     font-weight: bold;
     cursor: pointer;
@@ -69,6 +69,10 @@ section {
 
 .actions button.off {
     background: #f44336;
+}
+
+select {
+    padding: 6px;
 }
 
 .tag {
@@ -108,90 +112,72 @@ footer {
 
 <section>
 
-    <!-- VEHICLE STATE -->
-    <div class="card">
-        <h2>Vehicle State</h2>
-        <div class="grid">
-            <div>
-                <div class="data-row"><span>Vehicle ID</span><span id="vehicle_id">—</span></div>
-                <div class="data-row"><span>Brand</span><span id="brand">—</span></div>
-                <div class="data-row"><span>Model</span><span id="model">—</span></div>
-            </div>
-            <div>
-                <div class="data-row"><span>Ignition</span><span id="ignition">—</span></div>
-                <div class="data-row"><span>Uptime</span><span id="uptime">— s</span></div>
-                <div class="data-row"><span>Ambient Temp</span><span id="ambient_temp">— °C</span></div>
-            </div>
+<div class="card">
+    <h2>Vehicle State</h2>
+    <div class="grid">
+        <div>
+            <div class="data-row"><span>Vehicle ID</span><span id="vehicle_id">—</span></div>
+            <div class="data-row"><span>Brand</span><span id="brand">—</span></div>
+            <div class="data-row"><span>Model</span><span id="model">—</span></div>
+        </div>
+        <div>
+            <div class="data-row"><span>Ignition</span><span id="ignition">—</span></div>
+            <div class="data-row"><span>Uptime</span><span id="uptime">— s</span></div>
+            <div class="data-row"><span>Ambient Temp</span><span id="ambient_temp">— °C</span></div>
         </div>
     </div>
+</div>
 
-    <!-- POWER -->
-    <div class="card">
-        <h2>Power System</h2>
-        <div class="grid">
-            <div class="data-row"><span>Battery Voltage</span><span id="battery_voltage">— V</span></div>
-            <div class="data-row"><span>Battery Current</span><span id="battery_current">— A</span></div>
-            <div class="data-row"><span>Power Mode</span><span id="power_mode">—</span></div>
-        </div>
+<div class="card">
+    <h2>Power System</h2>
+    <div class="grid">
+        <div class="data-row"><span>Battery Voltage</span><span id="battery_voltage">— V</span></div>
+        <div class="data-row"><span>Battery Current</span><span id="battery_current">— A</span></div>
+        <div class="data-row"><span>Power Mode</span><span id="power_mode">—</span></div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>UDS Diagnostic – ReadDataByIdentifier</h2>
+
+    <div class="data-row">
+        <span>Select DID</span>
+        <select id="did_select">
+            <option value="F190">F190 – VIN</option>
+            <option value="F187">F187 – Software Version</option>
+            <option value="F18C">F18C – Hardware Version</option>
+            <option value="F40C">F40C – Engine RPM</option>
+            <option value="F40D">F40D – Engine Load</option>
+            <option value="F40E">F40E – Coolant Temperature</option>
+        </select>
     </div>
 
-    <!-- ENGINE IDENT -->
-    <div class="card">
-        <h2>Engine ECU – Identification</h2>
-        <div class="grid">
-            <div class="data-row"><span>VIN</span><span id="vin">—</span></div>
-            <div class="data-row"><span>HW Version</span><span id="hw">—</span></div>
-            <div class="data-row"><span>SW Version</span><span id="sw">—</span></div>
-        </div>
-    </div>
+    <button onclick="readDid()">Read DID</button>
 
-    <!-- ENGINE RUNTIME -->
-    <div class="card">
-        <h2>Engine ECU – Runtime</h2>
-        <div class="grid">
-            <div class="data-row"><span>RPM</span><span id="rpm">—</span></div>
-            <div class="data-row"><span>Engine Load</span><span id="load">— %</span></div>
-            <div class="data-row"><span>Coolant Temp</span><span id="coolant">— °C</span></div>
-        </div>
+    <div class="data-row">
+        <span>Result</span>
+        <span id="did_result">—</span>
     </div>
+</div>
 
-    <!-- ENGINE SENSORS -->
-    <div class="card">
-        <h2>Engine ECU – Sensors</h2>
-        <div class="grid">
-            <div class="data-row"><span>Throttle Position</span><span id="throttle">— %</span></div>
-            <div class="data-row"><span>Air Temp</span><span id="air_temp">— °C</span></div>
-            <div class="data-row"><span>Oil Pressure</span><span id="oil_pressure">— bar</span></div>
-        </div>
-    </div>
-
-    <!-- FAULTS -->
-    <div class="card">
-        <h2>Diagnostic Faults</h2>
-        <span id="fault_status" class="tag ok">NO FAULTS</span>
-        <ul id="fault_list"></ul>
-    </div>
-
-    <!-- ACTIONS -->
-    <div class="card actions">
-        <h2>Simulation Controls</h2>
-        <button onclick="ignitionOn()">Ignition ON</button>
-        <button class="off" onclick="ignitionOff()">Ignition OFF</button>
-        <button onclick="faultsOn()">Activate Faults</button>
-        <button class="off" onclick="faultsOff()">Clear Faults</button>
-        <button onclick="refreshAll()">Refresh Data</button>
-    </div>
+<div class="card actions">
+    <h2>Simulation Controls</h2>
+    <button onclick="ignitionOn()">Ignition ON</button>
+    <button class="off" onclick="ignitionOff()">Ignition OFF</button>
+    <button onclick="refreshAll()">Refresh Data</button>
+</div>
 
 </section>
 
 <footer>
-    Full SOVD Simulation · Raspberry Pi · Educational Project
+    SOVD Simulation · Raspberry Pi
 </footer>
 
 <script>
-function refreshAll() {
+const BASE_URL = window.location.origin;
 
-    fetch("/vehicle").then(r=>r.json()).then(d=>{
+function refreshAll() {
+    fetch(`${BASE_URL}/vehicle`).then(r=>r.json()).then(d=>{
         vehicle_id.innerText = d.id;
         brand.innerText = d.brand;
         model.innerText = d.model;
@@ -200,54 +186,56 @@ function refreshAll() {
         ambient_temp.innerText = d.ambient_temp_c;
     });
 
-    fetch("/vehicle/power").then(r=>r.json()).then(d=>{
+    fetch(`${BASE_URL}/vehicle/power`).then(r=>r.json()).then(d=>{
         battery_voltage.innerText = d.battery_voltage;
         battery_current.innerText = d.battery_current;
         power_mode.innerText = d.power_mode;
     });
+}
 
-    fetch("/components/engine/ident").then(r=>r.json()).then(d=>{
-        vin.innerText = d.vin;
-        hw.innerText = d.hw_version;
-        sw.innerText = d.sw_version;
-    });
+function ignitionOn(){ fetch(`${BASE_URL}/ignition/on`).then(refreshAll); }
+function ignitionOff(){ fetch(`${BASE_URL}/ignition/off`).then(refreshAll); }
 
-    fetch("/components/engine/runtime").then(r=>r.json()).then(d=>{
-        rpm.innerText = d.rpm;
-        load.innerText = d.engine_load;
-        coolant.innerText = d.coolant_temp_c;
-    });
+function readDid() {
+    const did = document.getElementById("did_select").value;
+    did_result.innerText = "Reading...";
 
-    fetch("/components/engine/sensors").then(r=>r.json()).then(d=>{
-        throttle.innerText = d.throttle_pos;
-        air_temp.innerText = d.air_temp_c;
-        oil_pressure.innerText = d.oil_pressure_bar;
-    });
-
-    fetch("/components/engine/faults").then(r=>r.json()).then(d=>{
-        const list = document.getElementById("fault_list");
-        list.innerHTML = "";
-
-        if (d.faults.length === 0) {
-            fault_status.className = "tag ok";
-            fault_status.innerText = "NO FAULTS";
+    fetch(`${BASE_URL}/uds/readDataByIdentifier`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ did: did })
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.value !== undefined) {
+            did_result.innerText = d.did + " (" + d.name + "): " + d.value;
         } else {
-            fault_status.className = "tag warn";
-            fault_status.innerText = "FAULTS ACTIVE";
-            d.faults.forEach(f=>{
-                const li = document.createElement("li");
-                li.innerText = f.code + " – " + f.description;
-                list.appendChild(li);
-            });
+            did_result.innerText = d.error;
         }
     });
 }
 
-function ignitionOn(){ fetch("/ignition/on").then(refreshAll); }
-function ignitionOff(){ fetch("/ignition/off").then(refreshAll); }
-function faultsOn(){ fetch("/faults/on").then(refreshAll); }
-function faultsOff(){ fetch("/faults/off").then(refreshAll); }
+// ===== SSE REALTIME EVENTS (LÓGICA INTERNA SIN ELEMENTOS VISUALES) =====
+const eventSource = new EventSource("/events");
 
+eventSource.onmessage = function(event) {
+    console.log("Evento recibido:", event.data);
+    try {
+        const data = JSON.parse(event.data);
+        if (data.fault_active === true) {
+            console.log("🚨 Fallo detectado en el vehículo");
+        } else {
+            console.log("✅ Sistema en estado óptimo");
+        }
+    } catch (e) {
+        console.error("Error parseando SSE:", e);
+    }
+};
+
+eventSource.onerror = function(error) {
+    console.error("Error SSE:", error);
+};
+    
 refreshAll();
 </script>
 
