@@ -30,22 +30,24 @@ def send_uds_sequence(uds_hex_list, delay_s=0.2, recv_timeout_s=1.0):
     sock.settimeout(recv_timeout_s)
     sock.connect((DOIP_IP, DOIP_PORT))
 
-    for uds_hex in uds_hex_list:
-        uds_payload = bytes.fromhex(uds_hex)
-        pkt = _build_doip_diag(uds_payload)
-        sock.sendall(pkt)
+    try:
+        for uds_hex in uds_hex_list:
+            uds_payload = bytes.fromhex(uds_hex)
+            pkt = _build_doip_diag(uds_payload)
+            sock.sendall(pkt)
 
-        # We try to read a response (If doip_ecu.py responds)
-        reply = None
-        try:
-            data = sock.recv(4096)
-            if data:
-                reply = data.hex()
-        except socket.timeout:
+            # We try to read a response (If doip_ecu.py responds)
             reply = None
+            try:
+                data = sock.recv(4096)
+                if data:
+                    reply = data.hex()
+            except socket.timeout:
+                reply = None
 
-        results.append((uds_hex, reply))
-        time.sleep(delay_s)
+            results.append((uds_hex, reply))
+            time.sleep(delay_s)
+    finally:
+        sock.close()
 
-    sock.close()
     return results

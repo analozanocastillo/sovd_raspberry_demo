@@ -430,7 +430,7 @@ eventSource.onmessage = function(event) {
         appendTerminalLine("🚨 ASYNC FAULT: LED_REAR Disconnected", "err");
         
         // Popup con notificación
-        showPopup("⚠️ Fallo en LED REAR LEFT", "fault");
+        showPopup("⚠️ LED_REAR Disconnected", "fault");
 
     } else if (rawData === "OK") {
         console.log("✅ OK DETECTADO!");
@@ -442,7 +442,7 @@ eventSource.onmessage = function(event) {
         appendTerminalLine("✅ ASYNC STATUS: System Restored", "rx");
         
         // Popup con notificación
-        showPopup("✅ Sistema recuperado", "ok");
+        showPopup("✅ System Restored", "ok");
     }
 };
 

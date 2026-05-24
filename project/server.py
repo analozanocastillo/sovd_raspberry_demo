@@ -5,6 +5,7 @@ import time
 from routes.api_routes import handle_api, handle_post
 from routes.ui_routes import handle_ui
 from data.vehicle_state import vehicle_state
+from doip_client import send_uds_sequence
 
 try:
     import serial
@@ -23,6 +24,18 @@ POSSIBLE_PORTS = [
 
 app = Flask(__name__)
 state_lock = threading.Lock()
+LED_STATE_DID = "F1A1"
+
+
+def send_led_state_by_uds(state):
+    payload = f"LED_REAR:{state}".encode("ascii").hex().upper()
+    uds_request = f"2E{LED_STATE_DID}{payload}"
+
+    try:
+        result = send_uds_sequence([uds_request], delay_s=0.0, recv_timeout_s=1.0)[-1]
+        print(f"[SOVD][UDS] LED state sent: {result}", flush=True)
+    except Exception as e:
+        print(f"[SOVD][UDS] Could not send LED state {state}: {e}", flush=True)
 
 
 def set_fault_active():
@@ -33,6 +46,7 @@ def set_fault_active():
         vehicle_state["rear_left_light"]["severity"] = "warning"
 
     print("[SOVD][SERIAL] Fallo activo:", vehicle_state["rear_left_light"], flush=True)
+    send_led_state_by_uds("FAULT")
 
 
 def clear_fault():
@@ -43,6 +57,7 @@ def clear_fault():
         vehicle_state["rear_left_light"]["severity"] = None
 
     print("[SOVD][SERIAL] Fallo eliminado:", vehicle_state["rear_left_light"], flush=True)
+    send_led_state_by_uds("OK")
 
 
 def find_serial_port():

@@ -11,6 +11,7 @@ DIDS = {
     "F40C": "3500",
     "F40D": "45%",
     "F40E": "92C",
+    "F1A1": "LED_REAR:OK",
 }
 
 
@@ -41,6 +42,22 @@ def handle_uds_request(uds):
         value = DIDS[did_hex].encode("ascii")
         print("POSITIVE RESPONSE FOR:", did_hex, flush=True)
         return b"\x62" + bytes.fromhex(did_hex) + value
+
+    if uds.startswith(b"\x2E"):
+        if len(uds) < 4:
+            return b"\x7F\x2E\x13"
+
+        did_hex = uds[1:3].hex().upper()
+        value = uds[3:].decode("ascii", errors="ignore")
+
+        print("WRITE DID REQUESTED:", did_hex, value, flush=True)
+
+        if did_hex != "F1A1":
+            print("WRITE DID NOT SUPPORTED:", did_hex, flush=True)
+            return b"\x7F\x2E\x31"
+
+        DIDS[did_hex] = value
+        return b"\x6E" + bytes.fromhex(did_hex)
 
     return b"\x7F" + uds[:1] + b"\x11"
 

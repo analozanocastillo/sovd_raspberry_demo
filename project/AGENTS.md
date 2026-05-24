@@ -76,11 +76,13 @@ Supported DIDs in the DoIP ECU:
 - `F40C`: Engine RPM
 - `F40D`: Engine Load
 - `F40E`: Coolant Temperature
+- `F1A1`: Latest rear-left LED state. LED changes are sent from `server.py` to `doip_ecu.py` with UDS `WriteDataByIdentifier` (`2E F1 A1 ...`) and the ECU replies with `6E F1 A1`.
 
 ## Known Gotchas
 
 - The main `server.py` `/events` endpoint emits raw SSE messages `FAULT` or `OK`, matching `index.html`.
 - `server.py` starts an Arduino serial listener for the rear-left LED detector and opens the port with exclusive access.
+- LED FAULT/OK transitions also create DoIP traffic on port `13400` using UDS `WriteDataByIdentifier` for DID `F1A1`.
 - `doip_ecu.py` should stay focused on DoIP so it does not compete with `server.py` for the serial port.
 - Serial access expects Arduino devices at `/dev/ttyACM0`, `/dev/ttyACM1`, `/dev/ttyUSB0`, or `/dev/ttyUSB1`.
 

@@ -141,6 +141,14 @@ LED_REAR:OK
 
 When the LED is disconnected, the dashboard should show a fault popup. When the LED is restored, it should show a recovery popup.
 
+Each LED state change also sends a UDS `WriteDataByIdentifier` request through DoIP:
+
+```text
+2E F1 A1 4C 45 44 5F 52 45 41 52 3A ...
+```
+
+The demo DID `F1A1` stores the latest LED state as ASCII, for example `LED_REAR:FAULT` or `LED_REAR:OK`. The simulated ECU replies with `6E F1 A1`.
+
 ### Test Without Arduino
 
 You can simulate the LED state with:
@@ -201,6 +209,7 @@ Supported DIDs:
 | `F40C` | Engine RPM |
 | `F40D` | Engine Load |
 | `F40E` | Coolant Temperature |
+| `F1A1` | Latest rear-left LED state |
 
 ### Real-Time Events
 
