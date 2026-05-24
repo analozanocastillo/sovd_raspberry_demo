@@ -417,39 +417,38 @@ function readDid() {
 const eventSource = new EventSource("/events");
 
 eventSource.onmessage = function(event) {
-    console.log("Evento recibido:", event.data);
+    const rawData = event.data.trim();
+    console.log("📨 Evento SSE recibido:", rawData);
 
-    try {
-        const data = JSON.parse(event.data);
-        const isFault = data.fault_active;
+    if (rawData === "FAULT") {
+        console.log("🚨 FAULT DETECTADO!");
+        
+        // Transición visual: gradiente rojo oscuro
+        document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
+        
+        // Log en terminal
+        appendTerminalLine("🚨 ASYNC FAULT: LED_REAR Disconnected", "err");
+        
+        // Popup con notificación
+        showPopup("⚠️ Fallo en LED REAR LEFT", "fault");
 
-        if (isFault) {
-            // Transición visual: gradiente rojo oscuro
-            document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
-            
-            // Log en terminal
-            appendTerminalLine("🚨 ASYNC FAULT: LED_REAR Disconnected", "err");
-            
-            // Popup con notificación
-            showPopup("⚠️ Fallo en LED REAR LEFT", "fault");
-
-        } else {
-            // Transición visual: gradiente gris técnico original
-            document.body.style.background = "linear-gradient(135deg, #1c1c1c, #2c3e50)";
-            
-            // Log en terminal
-            appendTerminalLine("✅ ASYNC STATUS: System Restored", "rx");
-            
-            // Popup con notificación
-            showPopup("✅ Sistema recuperado", "ok");
-        }
-    } catch (e) {
-        console.error("Error parseando SSE:", e);
+    } else if (rawData === "OK") {
+        console.log("✅ OK DETECTADO!");
+        
+        // Transición visual: gradiente gris técnico original
+        document.body.style.background = "linear-gradient(135deg, #1c1c1c, #2c3e50)";
+        
+        // Log en terminal
+        appendTerminalLine("✅ ASYNC STATUS: System Restored", "rx");
+        
+        // Popup con notificación
+        showPopup("✅ Sistema recuperado", "ok");
     }
 };
 
 eventSource.onerror = function(error) {
-    console.error("Error SSE:", error);
+    console.error("❌ Error SSE:", error);
+    appendTerminalLine("⚠ SSE Connection Error", "err");
 };
     
 refreshAll();

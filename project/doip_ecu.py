@@ -12,6 +12,7 @@ PORT = 13400
 
 WEB_HOST = "0.0.0.0"
 WEB_PORT = 5001
+USE_SERIAL = False
 
 BAUDRATE = 9600
 POSSIBLE_PORTS = [
@@ -92,22 +93,24 @@ def serial_listener():
             print("[ECU] Escuchando en puerto serial...", flush=True)
 
             while True:
-                line = ser.readline().decode("utf-8", errors="ignore").strip()
+                line = ser.readline().decode("utf-8", errors="ignore").strip().upper()
 
                 if not line:
                     continue
 
-                print("[ECU][SERIAL] RX:", line, flush=True)
+                print("[ECU][SERIAL] RX:", repr(line), flush=True)
 
-                if line == "LED_REAR:FAULT":
+                # Buscar palabras clave en el mensaje (más flexible)
+                if "FAULT" in line:
+                    print("[ECU][SERIAL] ✓ FAULT detectado en:", repr(line), flush=True)
                     set_fault_active()
 
-                elif line == "LED_REAR:OK":
+                elif "OK" in line:
+                    print("[ECU][SERIAL] ✓ OK detectado en:", repr(line), flush=True)
                     clear_fault()
 
                 else:
-                    # ignorar ruido o mensajes no válidos
-                    pass
+                    print("[ECU][SERIAL] ⚪ Mensaje ignorado:", repr(line), flush=True)
 
         except Exception as e:
             print("[ECU][SERIAL] ERROR:", e, flush=True)
@@ -140,11 +143,30 @@ def event_stream():
 
 @app.route("/")
 def index():
+    """Servir el dashboard principal"""
+    with open("index.html", "r", encoding="utf-8") as f:
+        return f.read()
+
+@app.route("/notification")
+def notification():
     return render_template("notification_client.html")
 
 @app.route("/events")
 def events():
     return Response(event_stream(), mimetype="text/event-stream")
+
+# ===== ENDPOINTS DE PRUEBA PARA SIMULAR EVENTOS =====
+@app.route("/test/fault")
+def test_fault():
+    """Simula desconexión del LED para pruebas"""
+    set_fault_active()
+    return {"status": "fault_active", "vehicle_state": vehicle_state["rear_left_light"]}
+
+@app.route("/test/ok")
+def test_ok():
+    """Simula restauración del LED para pruebas"""
+    clear_fault()
+    return {"status": "fault_cleared", "vehicle_state": vehicle_state["rear_left_light"]}
 
 def run_web_server():
     print(f"[ECU] Web notification server on port {WEB_PORT}", flush=True)
@@ -278,8 +300,9 @@ def run_doip_ecu():
 # =====================================================
 
 if __name__ == "__main__":
-    # Hilo que escucha el Arduino
-    threading.Thread(target=serial_listener, daemon=True).start()
+    # El dashboard principal en server.py es quien lee el Arduino.
+    if USE_SERIAL:
+        threading.Thread(target=serial_listener, daemon=True).start()
 
     # Hilo del servidor web para la notificación activa
     threading.Thread(target=run_web_server, daemon=True).start()
