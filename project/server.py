@@ -30,6 +30,10 @@ LED_STATE_DID = "F1A1"
 diagnostic_events = _diagnostic_events
 
 
+def get_client_id():
+    return request.headers.get("X-SOVD-Client") or request.args.get("client_id")
+
+
 def send_led_state_by_uds(state):
     payload = f"LED_REAR:{state}".encode("ascii").hex().upper()
     uds_request = f"2E{LED_STATE_DID}{payload}"
@@ -40,8 +44,16 @@ def send_led_state_by_uds(state):
         f"Rear-left LED state changed to {state}",
         f"LED_REAR:{state}",
         "error" if state == "FAULT" else "success",
+        global_event=True,
     )
-    add_trace("UDS", "tx", f"WriteDataByIdentifier DID 0x{LED_STATE_DID}", uds_request, "tx")
+    add_trace(
+        "UDS",
+        "tx",
+        f"WriteDataByIdentifier DID 0x{LED_STATE_DID}",
+        uds_request,
+        "tx",
+        global_event=True,
+    )
 
     try:
         result = send_uds_sequence([uds_request], delay_s=0.0, recv_timeout_s=1.0)[-1]
@@ -52,10 +64,11 @@ def send_led_state_by_uds(state):
             f"LED state write {'acknowledged' if reply else 'timed out'}",
             reply,
             "rx" if reply else "error",
+            global_event=True,
         )
         print(f"[SOVD][UDS] LED state sent: {result}", flush=True)
     except Exception as e:
-        add_trace("DoIP", "error", f"Could not send LED state {state}", str(e), "error")
+        add_trace("DoIP", "error", f"Could not send LED state {state}", str(e), "error", global_event=True)
         print(f"[SOVD][UDS] Could not send LED state {state}: {e}", flush=True)
 
 
@@ -167,16 +180,18 @@ def handle_get(path):
 
     # ===== DIAGNOSTIC TRACE =====
     if full_path == "/diagnostics/trace":
+        client_id = get_client_id()
         try:
             limit = int(request.args.get("limit", 80))
         except ValueError:
             limit = 80
 
         limit = max(1, min(limit, diagnostic_events.maxlen))
-        return jsonify({"items": get_trace(limit)})
+        return jsonify({"items": get_trace(limit, client_id=client_id)})
 
     # ===== API (GET endpoints) =====
-    api = handle_api(full_path)
+    client_id = get_client_id()
+    api = handle_api(full_path, client_id=client_id)
     if api is not None:
         status, payload = api
         return jsonify(payload), status
@@ -198,7 +213,7 @@ def handle_post_requests(path):
     except Exception:
         return jsonify({"error": "Invalid JSON body"}), 400
 
-    result = handle_post(full_path, body)
+    result = handle_post(full_path, body, client_id=get_client_id())
 
     if result is not None:
         status, payload = result
@@ -225,10 +240,8 @@ def events():
                 last_state = current
 
                 if current:
-                    add_trace("SSE", "tx", "Published LED state event", "FAULT", "event")
                     yield "data: FAULT\n\n"
                 else:
-                    add_trace("SSE", "tx", "Published LED state event", "OK", "event")
                     yield "data: OK\n\n"
 
             # Keep-alive para evitar timeouts en el navegador.

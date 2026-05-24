@@ -9,7 +9,7 @@ _trace_lock = threading.Lock()
 _next_id = 1
 
 
-def add_trace(source, direction, message, detail=None, level="info"):
+def add_trace(source, direction, message, detail=None, level="info", client_id=None, global_event=False):
     global _next_id
 
     with _trace_lock:
@@ -21,15 +21,20 @@ def add_trace(source, direction, message, detail=None, level="info"):
             "level": level,
             "message": message,
             "detail": detail,
+            "client_id": client_id,
+            "scope": "global" if global_event else "client",
         }
         _next_id += 1
         diagnostic_events.append(item)
         return item
 
 
-def get_trace(limit=80):
+def get_trace(limit=80, client_id=None):
     with _trace_lock:
-        items = list(diagnostic_events)
+        items = [
+            item for item in diagnostic_events
+            if item.get("scope") == "global" or item.get("client_id") == client_id
+        ]
 
     if limit is None:
         return items

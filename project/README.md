@@ -232,7 +232,11 @@ data: OK
 GET /diagnostics/trace
 ```
 
-Returns the latest entries from an in-memory `deque(maxlen=100)` for vehicle actions, LED state changes, UDS TX/RX, DoIP responses/errors, and SSE events. The dashboard displays these entries in the Diagnostics Trace panel.
+Returns the latest entries from an in-memory `deque(maxlen=100)`.
+
+Browser-initiated diagnostic actions are scoped per browser client, so one user's ReadDID trace is not shown to another user. Global vehicle events, such as real LED connect/disconnect changes, are visible to every connected browser.
+
+Browser-controlled simulation state is also scoped per browser client. For example, if one user turns ignition OFF from a phone, another user on a computer keeps their own ignition state and diagnostic flow. Physical LED connect/disconnect events remain shared because they represent the real vehicle/bench state.
 
 ---
 

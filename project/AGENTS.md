@@ -9,7 +9,7 @@ This repository is an educational SOVD/DoIP vehicle diagnostics demo intended fo
 - `routes/ui_routes.py`: Maps `/` and `/ui` to `index.html`.
 - `data/simulated_data.py`: In-memory vehicle, power, component, engine, sensor, and fault data.
 - `data/vehicle_state.py`: Shared in-memory state for the rear-left light fault.
-- `data/diagnostic_trace.py`: Bounded `deque(maxlen=100)` trace of vehicle actions, HTTP, LED, UDS, DoIP, and SSE activity shown in the dashboard.
+- `data/diagnostic_trace.py`: Bounded `deque(maxlen=100)` trace shown in the dashboard. Browser requests are scoped with `X-SOVD-Client`; LED events are global so all clients see them.
 - `index.html`: Main browser dashboard for vehicle identity, power telemetry, ignition controls, UDS DID reads, terminal-style logs, and SSE popup notifications.
 - `doip_client.py`: TCP DoIP client helper used by the REST UDS endpoint. Sends UDS payloads to `127.0.0.1:13400`.
 - `doip_ecu.py`: DoIP ECU simulator on TCP port `13400`. It intentionally has no Flask or serial responsibilities.
@@ -85,6 +85,8 @@ Supported DIDs in the DoIP ECU:
 - The main `server.py` `/events` endpoint emits raw SSE messages `FAULT` or `OK`, matching `index.html`.
 - `server.py` starts an Arduino serial listener for the rear-left LED detector and opens the port with exclusive access.
 - LED FAULT/OK transitions also create DoIP traffic on port `13400` using UDS `WriteDataByIdentifier` for DID `F1A1`.
+- The dashboard stores a browser-local client ID in `localStorage` and sends it as `X-SOVD-Client`. Keep browser-triggered traces and simulation state client-scoped, but keep physical LED events global.
+- `routes/api_routes.py` keeps a small in-memory client session map for browser-controlled simulation values such as ignition, speed, and demo engine faults. A phone changing ignition must not change what a laptop sees.
 - `doip_ecu.py` should stay focused on DoIP so it does not compete with `server.py` for the serial port.
 - Serial access expects Arduino devices at `/dev/ttyACM0`, `/dev/ttyACM1`, `/dev/ttyUSB0`, or `/dev/ttyUSB1`.
 

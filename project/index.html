@@ -584,6 +584,19 @@ const diagnosticTrace = document.getElementById("diagnostic_trace");
 const popup = document.getElementById("popup");
 const ledDot = document.getElementById("led_dot");
 const ledStatus = document.getElementById("led_status");
+const CLIENT_ID_KEY = "sovd_client_id";
+let clientId = localStorage.getItem(CLIENT_ID_KEY);
+
+if (!clientId) {
+    clientId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()) + Math.random().toString(16).slice(2);
+    localStorage.setItem(CLIENT_ID_KEY, clientId);
+}
+
+function clientFetch(url, options = {}) {
+    const headers = new Headers(options.headers || {});
+    headers.set("X-SOVD-Client", clientId);
+    return fetch(url, {...options, headers});
+}
 
 function updateIgnitionVisual(state) {
     const dot = document.getElementById("ignition_dot");
@@ -616,7 +629,7 @@ function showPopup(message, type) {
 }
 
 function refreshAll() {
-    fetch(`${BASE_URL}/vehicle`).then(r=>r.json()).then(d=>{
+    clientFetch(`${BASE_URL}/vehicle`).then(r=>r.json()).then(d=>{
         vehicle_id.innerText = d.id || '—';
         brand.innerText = d.brand || '—';
         model.innerText = d.model || '—';
@@ -627,7 +640,7 @@ function refreshAll() {
         updateIgnitionVisual(d.ignition);
     }).catch(err => console.error("Error:", err));
 
-    fetch(`${BASE_URL}/vehicle/power`).then(r=>r.json()).then(d=>{
+    clientFetch(`${BASE_URL}/vehicle/power`).then(r=>r.json()).then(d=>{
         battery_voltage.innerText = (d.battery_voltage !== undefined) ? d.battery_voltage + " V" : "— V";
         battery_current.innerText = (d.battery_current !== undefined) ? d.battery_current + " A" : "— A";
         power_mode.innerText = d.power_mode || '—';
@@ -685,23 +698,23 @@ function renderDiagnosticTrace(items) {
 }
 
 function refreshDiagnosticTrace() {
-    fetch(`${BASE_URL}/diagnostics/trace?limit=80`)
+    clientFetch(`${BASE_URL}/diagnostics/trace?limit=80`)
         .then(r => r.json())
         .then(d => renderDiagnosticTrace(d.items || []))
         .catch(err => console.error("Trace error:", err));
 }
 
 function ignitionOn(){ 
-    fetch(`${BASE_URL}/ignition/on`).then(refreshAll); 
+    clientFetch(`${BASE_URL}/ignition/on`).then(refreshAll); 
 }
 function ignitionOff(){ 
-    fetch(`${BASE_URL}/ignition/off`).then(refreshAll); 
+    clientFetch(`${BASE_URL}/ignition/off`).then(refreshAll); 
 }
 
 function readDid() {
     const did = document.getElementById("did_select").value;
 
-    fetch(`${BASE_URL}/uds/readDataByIdentifier`, {
+    clientFetch(`${BASE_URL}/uds/readDataByIdentifier`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ did: did })
