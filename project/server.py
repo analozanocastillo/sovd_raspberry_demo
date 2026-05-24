@@ -5,6 +5,7 @@ import time
 from routes.api_routes import handle_api, handle_post
 from routes.ui_routes import handle_ui
 from data.vehicle_state import vehicle_state
+from data.diagnostic_trace import add_trace, diagnostic_events as _diagnostic_events, get_trace
 from doip_client import send_uds_sequence
 
 try:
@@ -25,16 +26,36 @@ POSSIBLE_PORTS = [
 app = Flask(__name__)
 state_lock = threading.Lock()
 LED_STATE_DID = "F1A1"
+# Shared in-memory ring buffer: deque(maxlen=100)
+diagnostic_events = _diagnostic_events
 
 
 def send_led_state_by_uds(state):
     payload = f"LED_REAR:{state}".encode("ascii").hex().upper()
     uds_request = f"2E{LED_STATE_DID}{payload}"
 
+    add_trace(
+        "LED",
+        "event",
+        f"Rear-left LED state changed to {state}",
+        f"LED_REAR:{state}",
+        "error" if state == "FAULT" else "success",
+    )
+    add_trace("UDS", "tx", f"WriteDataByIdentifier DID 0x{LED_STATE_DID}", uds_request, "tx")
+
     try:
         result = send_uds_sequence([uds_request], delay_s=0.0, recv_timeout_s=1.0)[-1]
+        _, reply = result
+        add_trace(
+            "DoIP",
+            "rx" if reply else "error",
+            f"LED state write {'acknowledged' if reply else 'timed out'}",
+            reply,
+            "rx" if reply else "error",
+        )
         print(f"[SOVD][UDS] LED state sent: {result}", flush=True)
     except Exception as e:
+        add_trace("DoIP", "error", f"Could not send LED state {state}", str(e), "error")
         print(f"[SOVD][UDS] Could not send LED state {state}: {e}", flush=True)
 
 
@@ -144,6 +165,16 @@ def handle_get(path):
             "vehicle_state": vehicle_state["rear_left_light"]
         })
 
+    # ===== DIAGNOSTIC TRACE =====
+    if full_path == "/diagnostics/trace":
+        try:
+            limit = int(request.args.get("limit", 80))
+        except ValueError:
+            limit = 80
+
+        limit = max(1, min(limit, diagnostic_events.maxlen))
+        return jsonify({"items": get_trace(limit)})
+
     # ===== API (GET endpoints) =====
     api = handle_api(full_path)
     if api is not None:
@@ -194,8 +225,10 @@ def events():
                 last_state = current
 
                 if current:
+                    add_trace("SSE", "tx", "Published LED state event", "FAULT", "event")
                     yield "data: FAULT\n\n"
                 else:
+                    add_trace("SSE", "tx", "Published LED state event", "OK", "event")
                     yield "data: OK\n\n"
 
             # Keep-alive para evitar timeouts en el navegador.

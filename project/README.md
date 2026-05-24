@@ -24,6 +24,7 @@ project/
 ├── index.html                        # Main dashboard served by server.py
 ├── arduino_code.cpp                  # Arduino LED detector sketch
 ├── data/
+│   ├── diagnostic_trace.py           # In-memory diagnostics trace buffer
 │   ├── simulated_data.py             # Vehicle, power, ECU, sensor, and fault demo data
 │   └── vehicle_state.py              # Shared rear-left light fault state
 ├── routes/
@@ -52,6 +53,7 @@ The dashboard calls REST endpoints on the same origin, for example:
 GET  /vehicle
 GET  /vehicle/power
 POST /uds/readDataByIdentifier
+GET  /diagnostics/trace
 GET  /events
 ```
 
@@ -223,6 +225,14 @@ This endpoint uses Server-Sent Events and emits:
 data: FAULT
 data: OK
 ```
+
+### Diagnostics Trace
+
+```http
+GET /diagnostics/trace
+```
+
+Returns the latest entries from an in-memory `deque(maxlen=100)` for vehicle actions, LED state changes, UDS TX/RX, DoIP responses/errors, and SSE events. The dashboard displays these entries in the Diagnostics Trace panel.
 
 ---
 

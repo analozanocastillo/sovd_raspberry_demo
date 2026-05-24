@@ -1,4 +1,5 @@
 from data.simulated_data import DATA
+from data.diagnostic_trace import add_trace
 from doip_client import send_uds_sequence
 import struct
 
@@ -35,19 +36,23 @@ def handle_api(path):
     # ========= STATE CONTROL (SIMULATION) =========
     if path == "/ignition/on":
         DATA["vehicle"]["ignition"] = "ON"
+        add_trace("Vehicle", "action", "Ignition switched ON", "GET /ignition/on", "event")
         return 200, {"ignition": "ON"}
 
     if path == "/ignition/off":
         DATA["vehicle"]["ignition"] = "OFF"
         DATA["vehicle"]["speed_kmh"] = 0
+        add_trace("Vehicle", "action", "Ignition switched OFF", "GET /ignition/off", "event")
         return 200, {"ignition": "OFF"}
 
     if path == "/faults/on":
         DATA["engine"]["faults_active"] = True
+        add_trace("Vehicle", "action", "Engine demo faults enabled", "GET /faults/on", "event")
         return 200, {"faults_active": True}
 
     if path == "/faults/off":
         DATA["engine"]["faults_active"] = False
+        add_trace("Vehicle", "action", "Engine demo faults cleared", "GET /faults/off", "event")
         return 200, {"faults_active": False}
 
     if path == "/vehicle/speed":
@@ -59,6 +64,7 @@ def handle_api(path):
         try:
             value = int(path.split("/")[-1])
             DATA["vehicle"]["speed_kmh"] = value
+            add_trace("Vehicle", "action", "Vehicle speed updated", f"{value} km/h", "event")
             return 200, {"speed_kmh": value}
         except ValueError:
             return 400, {"error": "Invalid speed"}
@@ -83,6 +89,8 @@ def handle_post(path, body):
         # UDS Construction =================================
         try:
             uds_request = f"22{did}"
+            add_trace("HTTP", "rx", "POST /uds/readDataByIdentifier", f"DID 0x{did}", "info")
+            add_trace("UDS", "tx", f"ReadDataByIdentifier DID 0x{did}", uds_request, "tx")
 
             # DoIP Communication =================================
             results = send_uds_sequence([uds_request], delay_s=0.2, recv_timeout_s=2.0)
@@ -90,7 +98,10 @@ def handle_post(path, body):
             _, reply = results[-1]
 
             if not reply:
+                add_trace("DoIP", "error", "No response from ECU", uds_request, "error")
                 return 502, {"error": "No response from DoIP ECU"}
+
+            add_trace("DoIP", "rx", "Diagnostic response received", reply, "rx")
 
             # DOIP RESPONSE ====================================================
             # DOIP Response Parsing =================================
@@ -98,16 +109,19 @@ def handle_post(path, body):
             data = bytes.fromhex(reply)
 
             if len(data) < 12:
+                add_trace("DoIP", "error", "DoIP response too short", reply, "error")
                 return 502, {"error": "DoIP response too short"}
 
             _, _, _, payload_len = struct.unpack("!BBHI", data[:8])
             payload = data[8:8 + payload_len]
 
             if len(payload) < 4:
+                add_trace("DoIP", "error", "DoIP payload too short", payload.hex().upper(), "error")
                 return 502, {"error": "DoIP payload too short"}
             uds_resp = payload[4:]
 
             if len(uds_resp) < 1:
+                add_trace("UDS", "error", "Empty UDS response", reply, "error")
                 return 502, {"error": "Empty UDS response"}
 
             # UDS Negative Response =================================
@@ -115,6 +129,7 @@ def handle_post(path, body):
 
             if uds_resp[0] == 0x7F:
                 nrc = uds_resp.hex().upper()
+                add_trace("UDS", "error", f"Negative response for DID 0x{did}", nrc, "error")
 
                 return 404, {
                     "error": f"DID {did} not supported",
@@ -124,6 +139,7 @@ def handle_post(path, body):
             # ReadDataByIdentifier: Request: 22 F1 87 / Response: 62 F1 87 + data
 
             if uds_resp[0] != 0x62 or len(uds_resp) < 3:
+                add_trace("UDS", "error", "Unexpected UDS response", uds_resp.hex().upper(), "error")
                 return 502, {
                     "error": "Unexpected UDS response",
                     "uds_response": uds_resp.hex().upper()}
@@ -144,6 +160,13 @@ def handle_post(path, body):
                 "F40D": "Engine Load",
                 "F40E": "Coolant Temperature"
             }
+            add_trace(
+                "UDS",
+                "rx",
+                f"Positive response DID 0x{resp_did}",
+                value,
+                "rx",
+            )
 
             return 200, {
                 "did": resp_did,
@@ -152,6 +175,7 @@ def handle_post(path, body):
             }
 
         except Exception as e:
+            add_trace("DoIP", "error", "DoIP request failed", str(e), "error")
             return 500, {"error": str(e)}
 
     return None

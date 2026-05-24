@@ -7,8 +7,8 @@
 
 <style>
 :root {
-    --bg-main: #1e2530; /* Gris técnico industrial */
-    --bg-card: #2a3241; /* Tarjetas en contraste suave */
+    --bg-main: #1d2430;
+    --bg-card: #293241;
     --border-color: #3f4a5f;
     --text-main: #ffffff;
     --text-muted: #a0aec0;
@@ -22,14 +22,14 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif;
     background-color: var(--bg-main);
     color: var(--text-main);
-    transition: background 0.5s ease; /* Permite la transición de color de fondo del body */
+    transition: background 0.5s ease;
 }
 
 header {
     background-color: #171d26;
     border-bottom: 1px solid var(--border-color);
     padding: 25px 20px;
-    text-align: center;
+    text-align: left;
 }
 
 header h1 {
@@ -47,6 +47,43 @@ header p {
     font-weight: 500;
 }
 
+.header-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.status-strip {
+    max-width: 1100px;
+    margin: 18px auto 0 auto;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.status-tile {
+    background-color: #111820;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 12px;
+}
+
+.status-title {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+}
+
+.status-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 5px;
+    font-family: 'Consolas', Monaco, monospace;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
 section {
     max-width: 1100px;
     margin: 30px auto;
@@ -59,6 +96,8 @@ section {
 @media (max-width: 850px) {
     section { grid-template-columns: 1fr; }
     .full-width { grid-column: span 1 !important; }
+    .status-strip { grid-template-columns: 1fr 1fr; }
+    .trace-row { grid-template-columns: 64px 48px 54px minmax(0, 1fr) !important; }
 }
 
 .full-width {
@@ -163,31 +202,60 @@ select {
     outline: none;
 }
 
-.terminal-window {
-    background-color: #141820;
+.trace-window {
+    background-color: #11161d;
     border: 1px solid var(--border-color);
     border-radius: 6px;
-    padding: 12px;
     font-family: 'Consolas', 'Lucida Console', monospace;
-    font-size: 0.85rem;
-    min-height: 80px;
-    max-height: 140px;
+    font-size: 0.8rem;
+    height: 420px;
     overflow-y: auto;
 }
 
-.terminal-line {
-    margin: 4px 0;
+.trace-row {
+    display: grid;
+    grid-template-columns: 76px 58px 64px minmax(0, 1fr);
+    gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    align-items: start;
 }
 
-.term-tx { color: #f39c12; }
-.term-rx { color: var(--accent-green); }
-.term-err { color: var(--accent-red); }
-.term-info { color: var(--accent-blue); }
+.trace-time,
+.trace-source {
+    color: var(--text-muted);
+}
+
+.trace-direction {
+    color: var(--accent-blue);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.trace-message {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.trace-detail {
+    display: block;
+    color: var(--text-muted);
+    margin-top: 3px;
+    overflow-wrap: anywhere;
+}
+
+.trace-row.tx .trace-direction { color: #f39c12; }
+.trace-row.rx .trace-direction,
+.trace-row.success .trace-direction { color: var(--accent-green); }
+.trace-row.error .trace-direction { color: var(--accent-red); }
+.trace-row.event .trace-direction { color: #f472b6; }
 
 /* Botonera */
 .control-panel {
     display: flex;
     gap: 12px;
+    flex-wrap: wrap;
 }
 
 button {
@@ -208,6 +276,9 @@ button {
 
 .btn-danger { background-color: #e74c3c; color: white; }
 .btn-danger:hover { background-color: #c0392b; }
+
+.btn-secondary { background-color: #465468; color: white; }
+.btn-secondary:hover { background-color: #56657b; }
 
 /* === TU POP-UP ORIGINAL CON TUS GRADIENTES PROPIOS === */
 .popup {
@@ -260,8 +331,28 @@ footer {
 <div id="popup" class="popup"></div>
 
 <header>
-    <h1>SOVD Vehicle Diagnostics</h1>
-    <p>Service‑Oriented Vehicle Diagnostics Simulation</p>
+    <div class="header-inner">
+        <h1>SOVD Vehicle Diagnostics</h1>
+        <p>Service-Oriented Vehicle Diagnostics Simulation</p>
+        <div class="status-strip">
+            <div class="status-tile">
+                <span class="status-title">Gateway</span>
+                <span class="status-value"><span class="dot active-green"></span>HTTP :5000</span>
+            </div>
+            <div class="status-tile">
+                <span class="status-title">DoIP ECU</span>
+                <span class="status-value"><span class="dot active-green"></span>TCP :13400</span>
+            </div>
+            <div class="status-tile">
+                <span class="status-title">Protocol</span>
+                <span class="status-value">UDS over DoIP</span>
+            </div>
+            <div class="status-tile">
+                <span class="status-title">LED Monitor</span>
+                <span class="status-value"><span id="led_dot" class="dot"></span><span id="led_status">UNKNOWN</span></span>
+            </div>
+        </div>
+    </div>
 </header>
 
 <section>
@@ -294,22 +385,27 @@ footer {
     </div>
 
     <div class="card full-width">
-        <h2>UDS Diagnostic Layer</h2>
+        <h2>SOVD Diagnostic Console</h2>
         <div class="diagnostic-box">
             <div class="selector-group">
                 <select id="did_select">
-                    <option value="F190">F190 – VIN (Vehicle Identification Number)</option>
-                    <option value="F187">F187 – ECU Software Version Number</option>
-                    <option value="F18C">F18C – ECU Hardware Version Number</option>
-                    <option value="F40C">F40C – Current Engine RPM</option>
-                    <option value="F40D">F40D – Engine Load Value</option>
-                    <option value="F40E">F40E – Engine Coolant Temperature</option>
+                    <option value="F190">F190 - VIN (Vehicle Identification Number)</option>
+                    <option value="F187">F187 - ECU Software Version Number</option>
+                    <option value="F18C">F18C - ECU Hardware Version Number</option>
+                    <option value="F40C">F40C - Current Engine RPM</option>
+                    <option value="F40D">F40D - Engine Load Value</option>
+                    <option value="F40E">F40E - Engine Coolant Temperature</option>
                 </select>
                 <button class="btn-primary" onclick="readDid()">Execute ReadDID</button>
             </div>
-            
-            <div class="terminal-window" id="terminal_console">
-                <div class="terminal-line term-info">> Diagnostic session initialized. Waiting for Request...</div>
+
+            <div class="trace-window" id="diagnostic_trace">
+                <div class="trace-row">
+                    <span class="trace-time">--:--:--</span>
+                    <span class="trace-source">TRACE</span>
+                    <span class="trace-direction">IDLE</span>
+                    <span class="trace-message">Waiting for diagnostic activity...</span>
+                </div>
             </div>
         </div>
     </div>
@@ -330,17 +426,10 @@ footer {
 
 <script>
 const BASE_URL = window.location.origin;
-const terminalConsole = document.getElementById("terminal_console");
+const diagnosticTrace = document.getElementById("diagnostic_trace");
 const popup = document.getElementById("popup");
-
-function appendTerminalLine(text, type = "info") {
-    const time = new Date().toLocaleTimeString();
-    const line = document.createElement("div");
-    line.className = `terminal-line term-${type}`;
-    line.innerText = `[${time}] ${text}`;
-    terminalConsole.appendChild(line);
-    terminalConsole.scrollTop = terminalConsole.scrollHeight;
-}
+const ledDot = document.getElementById("led_dot");
+const ledStatus = document.getElementById("led_status");
 
 function updateIgnitionVisual(state) {
     const dot = document.getElementById("ignition_dot");
@@ -348,6 +437,17 @@ function updateIgnitionVisual(state) {
         dot.className = "dot active-green";
     } else {
         dot.className = "dot active-red";
+    }
+}
+
+function updateLedVisual(state) {
+    ledStatus.innerText = state;
+    if (state === "FAULT") {
+        ledDot.className = "dot active-red";
+    } else if (state === "OK") {
+        ledDot.className = "dot active-green";
+    } else {
+        ledDot.className = "dot";
     }
 }
 
@@ -380,18 +480,72 @@ function refreshAll() {
     }).catch(err => console.error("Error:", err));
 }
 
+function formatTraceTime(timestamp) {
+    if (!timestamp) return "--:--:--";
+    const parts = timestamp.split("T");
+    return parts.length > 1 ? parts[1] : timestamp;
+}
+
+function renderDiagnosticTrace(items) {
+    if (!items || items.length === 0) {
+        return;
+    }
+
+    diagnosticTrace.innerHTML = "";
+
+    items.forEach(item => {
+        const row = document.createElement("div");
+        row.className = `trace-row ${item.level || "info"}`;
+
+        const time = document.createElement("span");
+        time.className = "trace-time";
+        time.innerText = formatTraceTime(item.timestamp);
+
+        const source = document.createElement("span");
+        source.className = "trace-source";
+        source.innerText = item.source || "TRACE";
+
+        const direction = document.createElement("span");
+        direction.className = "trace-direction";
+        direction.innerText = item.direction || "info";
+
+        const message = document.createElement("span");
+        message.className = "trace-message";
+        message.innerText = item.message || "";
+
+        if (item.detail) {
+            const detail = document.createElement("span");
+            detail.className = "trace-detail";
+            detail.innerText = item.detail;
+            message.appendChild(detail);
+        }
+
+        row.appendChild(time);
+        row.appendChild(source);
+        row.appendChild(direction);
+        row.appendChild(message);
+        diagnosticTrace.appendChild(row);
+    });
+
+    diagnosticTrace.scrollTop = diagnosticTrace.scrollHeight;
+}
+
+function refreshDiagnosticTrace() {
+    fetch(`${BASE_URL}/diagnostics/trace?limit=80`)
+        .then(r => r.json())
+        .then(d => renderDiagnosticTrace(d.items || []))
+        .catch(err => console.error("Trace error:", err));
+}
+
 function ignitionOn(){ 
-    appendTerminalLine("Control: Requesting Ignition ON...", "info");
     fetch(`${BASE_URL}/ignition/on`).then(refreshAll); 
 }
 function ignitionOff(){ 
-    appendTerminalLine("Control: Requesting Ignition OFF...", "info");
     fetch(`${BASE_URL}/ignition/off`).then(refreshAll); 
 }
 
 function readDid() {
     const did = document.getElementById("did_select").value;
-    appendTerminalLine(`→ UDS Request: ReadDataByIdentifier [DID: 0x${did}]`, "tx");
 
     fetch(`${BASE_URL}/uds/readDataByIdentifier`, {
         method: "POST",
@@ -399,18 +553,8 @@ function readDid() {
         body: JSON.stringify({ did: did })
     })
     .then(r => r.json())
-    .then(d => {
-        if (d.value !== undefined) {
-            appendTerminalLine(`← UDS Response: Positive [Service: 0x62] [DID: 0x${did}]`, "rx");
-            appendTerminalLine(`  └─ Decoded Payload: ${d.name} = "${d.value}"`, "info");
-        } else {
-            appendTerminalLine(`← UDS Response: Negative [Service: 0x7F]`, "err");
-            appendTerminalLine(`  └─ Diagnostic Fault: ${d.error}`, "err");
-        }
-    })
-    .catch(err => {
-        appendTerminalLine(`⚠ Protocol Error: Link down or Gateway unreachable.`, "err");
-    });
+    .then(() => refreshDiagnosticTrace())
+    .catch(err => console.error("ReadDID error:", err));
 }
 
 // ===== EVENT SOURCE: REAL-TIME VEHICLE STATE MONITORING =====
@@ -426,11 +570,9 @@ eventSource.onmessage = function(event) {
         // Transición visual: gradiente rojo oscuro
         document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
         
-        // Log en terminal
-        appendTerminalLine("🚨 ASYNC FAULT: LED_REAR Disconnected", "err");
-        
         // Popup con notificación
         showPopup("⚠️ LED_REAR Disconnected", "fault");
+        updateLedVisual("FAULT");
 
     } else if (rawData === "OK") {
         console.log("✅ OK DETECTADO!");
@@ -438,20 +580,19 @@ eventSource.onmessage = function(event) {
         // Transición visual: gradiente gris técnico original
         document.body.style.background = "linear-gradient(135deg, #1c1c1c, #2c3e50)";
         
-        // Log en terminal
-        appendTerminalLine("✅ ASYNC STATUS: System Restored", "rx");
-        
         // Popup con notificación
         showPopup("✅ System Restored", "ok");
+        updateLedVisual("OK");
     }
 };
 
 eventSource.onerror = function(error) {
     console.error("❌ Error SSE:", error);
-    appendTerminalLine("⚠ SSE Connection Error", "err");
 };
     
 refreshAll();
+refreshDiagnosticTrace();
+setInterval(refreshDiagnosticTrace, 1000);
 </script>
 
 </body>
