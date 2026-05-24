@@ -1,14 +1,6 @@
 from data.simulated_data import DATA
 from doip_client import send_uds_sequence
-import subprocess
 import struct
-
-from data.vehicle_state import vehicle_state
-
-from flask import Response
-import json
-import time
-
 
 
 def handle_api(path):
@@ -57,21 +49,19 @@ def handle_api(path):
     if path == "/faults/off":
         DATA["engine"]["faults_active"] = False
         return 200, {"faults_active": False}
-    
 
-    elif path == "/vehicle/speed":
+    if path == "/vehicle/speed":
         return 200, {
             "speed_kmh": DATA["vehicle"].get("speed_kmh", 0)
         }
-    
-    elif path.startswith("/vehicle/speed/"):
+
+    if path.startswith("/vehicle/speed/"):
         try:
             value = int(path.split("/")[-1])
             DATA["vehicle"]["speed_kmh"] = value
             return 200, {"speed_kmh": value}
-        except:
+        except ValueError:
             return 400, {"error": "Invalid speed"}
-
 
     return None
 
@@ -97,12 +87,11 @@ def handle_post(path, body):
             # DoIP Communication =================================
             results = send_uds_sequence([uds_request], delay_s=0.2, recv_timeout_s=2.0)
 
-            req, reply = results[-1]
+            _, reply = results[-1]
 
             if not reply:
                 return 502, {"error": "No response from DoIP ECU"}
-            
-            
+
             # DOIP RESPONSE ====================================================
             # DOIP Response Parsing =================================
 
@@ -111,12 +100,11 @@ def handle_post(path, body):
             if len(data) < 12:
                 return 502, {"error": "DoIP response too short"}
 
-            ver, inv, payload_type, payload_len = struct.unpack("!BBHI", data[:8])
+            _, _, _, payload_len = struct.unpack("!BBHI", data[:8])
             payload = data[8:8 + payload_len]
 
             if len(payload) < 4:
                 return 502, {"error": "DoIP payload too short"}
-            source_addr, target_addr = struct.unpack("!HH", payload[:4])
             uds_resp = payload[4:]
 
             if len(uds_resp) < 1:
@@ -149,12 +137,12 @@ def handle_post(path, body):
             ).strip("\x00").strip()
 
             DID_NAMES = {
-            "F190": "VIN",
-            "F187": "Software Version",
-            "F18C": "Hardware Version",
-            "F40C": "Engine RPM",
-            "F40D": "Engine Load",
-            "F40E": "Coolant Temperature"
+                "F190": "VIN",
+                "F187": "Software Version",
+                "F18C": "Hardware Version",
+                "F40C": "Engine RPM",
+                "F40D": "Engine Load",
+                "F40E": "Coolant Temperature"
             }
 
             return 200, {
@@ -167,18 +155,3 @@ def handle_post(path, body):
             return 500, {"error": str(e)}
 
     return None
-
-
-def init_routes(app):
-    @app.route("/events")
-    def events():
-
-        def event_stream():
-            while True:
-                current_state = vehicle_state.get("rear_left_light", {}).get("fault_active", False)
-
-                yield f"data: {json.dumps({'fault_active': current_state})}\n\n"
-
-                time.sleep(1)
-
-        return Response(event_stream(), mimetype="text/event-stream")

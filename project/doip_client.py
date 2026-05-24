@@ -49,4 +49,3 @@ def send_uds_sequence(uds_hex_list, delay_s=0.2, recv_timeout_s=1.0):
 
     sock.close()
     return results
-    return results

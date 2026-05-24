@@ -29,11 +29,6 @@ project/
 ├── routes/
 │   ├── api_routes.py                 # REST and UDS route logic
 │   └── ui_routes.py                  # UI route mapping
-├── templates/
-│   └── notification_client.html      # Legacy/standalone notification page
-├── event_server.py                   # Older standalone notification server
-├── ecu.py                            # Older combined ECU/server variant
-├── uds_tester.py                     # Simple standalone DoIP tester
 ├── Dockerfile
 ├── AGENTS.md                         # Project context for future Codex sessions
 └── README.md
@@ -94,7 +89,7 @@ python3 doip_ecu.py
 
 This starts the simulated DoIP ECU on TCP port `13400`.
 
-By default, `doip_ecu.py` does **not** read the Arduino serial port. The main `server.py` process owns the LED detector to avoid two processes competing for the same device.
+`doip_ecu.py` only handles DoIP/UDS traffic. The main `server.py` process owns the LED detector to avoid two processes competing for the same serial device.
 
 ### 2. Start The Main Dashboard Server
 
@@ -252,5 +247,4 @@ curl --max-time 2 http://localhost:5000/events
 - There is no authentication or transport security.
 - The Flask apps are development/demo servers.
 - Only one process should read the Arduino serial port. By convention, `server.py` owns it.
-- `event_server.py` and `ecu.py` are older experimental variants and are kept for reference.
-- `templates/notification_client.html` is the legacy standalone notification page; the main dashboard is `index.html`.
+- Older experimental entrypoints were removed so the active flow is easier to follow.
