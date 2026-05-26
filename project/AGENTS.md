@@ -42,6 +42,17 @@ http://localhost:5000/test/fault
 http://localhost:5000/test/ok
 ```
 
+## Presentation Access Point
+
+- For presentations, the Raspberry Pi can run its own Wi-Fi access point named `SOVD-Demo` with password `SOVDdemo2026`.
+- `scripts/setup_access_point.sh` configures this through NetworkManager and gives the Pi the stable AP address `192.168.4.1`.
+- `sovd-wifi-qr.png` joins the Wi-Fi network.
+- `sovd-dashboard-qr.png` opens `http://192.168.4.1:5000/`.
+- Warn before running the AP setup over Wi-Fi because switching `wlan0` into AP mode can disconnect the active session.
+- Current mobile-hotspot presentation mode uses SSID `SOVD-demo-Ana`.
+- The Raspberry Pi NetworkManager connection `SOVD-demo-Ana` has been set to manual IPv4 `172.20.10.2/28`, gateway `172.20.10.1`, DNS `172.20.10.1 8.8.8.8`.
+- In mobile-hotspot mode, `sovd-dashboard-qr.png` should point to `http://172.20.10.2:5000/`.
+
 ## API Shape
 
 Common GET endpoints:

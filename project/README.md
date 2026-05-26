@@ -119,6 +119,83 @@ On a Raspberry Pi or another device on the same network, replace `localhost` wit
 http://<raspberry-pi-ip>:5000/
 ```
 
+### Presentation Wi-Fi Access Point
+
+For presentations, the Raspberry Pi can create its own local Wi-Fi network. Attendees connect to that Wi-Fi first, then open the dashboard through a stable local address:
+
+```text
+http://192.168.4.1:5000/
+```
+
+Default presentation credentials:
+
+```text
+Wi-Fi name: SOVD-Demo
+Password: SOVDdemo2026
+```
+
+The repository includes two QR codes:
+
+- `sovd-wifi-qr.png`: joins the `SOVD-Demo` Wi-Fi network.
+- `sovd-dashboard-qr.png`: opens `http://192.168.4.1:5000/`.
+
+To configure the Raspberry Pi access point with NetworkManager:
+
+```bash
+sudo ./scripts/setup_access_point.sh
+```
+
+If you are connected to the Raspberry Pi through Wi-Fi, this command may disconnect your current session because the Wi-Fi interface switches from client mode to access-point mode. Use Ethernet, a local keyboard/screen, or the existing tunnel when applying this configuration.
+
+After the access point is active:
+
+1. Start the DoIP ECU simulator:
+
+```bash
+python3 doip_ecu.py
+```
+
+2. Start the dashboard:
+
+```bash
+python3 server.py
+```
+
+3. Ask attendees to scan `sovd-wifi-qr.png`, stay connected even if the phone says the network has no internet, then scan `sovd-dashboard-qr.png`.
+
+The presentation Wi-Fi is a local network. If the Raspberry Pi does not have a second internet uplink, phones may show a warning such as "No Internet Connection". That is normal: the Wi-Fi still lets attendees reach the dashboard at `http://192.168.4.1:5000/`.
+
+To make the presentation Wi-Fi provide internet too, the Pi needs another uplink while `wlan0` is being used as the access point. Good options are:
+
+- Ethernet connected to a router.
+- USB tethering from a phone.
+- A second USB Wi-Fi adapter for the internet side.
+
+Using only the built-in `wlan0` for both the access point and another Wi-Fi network is not reliable for this demo.
+
+### Presentation Mobile Hotspot Mode
+
+The current presentation setup uses a mobile hotspot named:
+
+```text
+SOVD-demo-Ana
+```
+
+The Raspberry Pi NetworkManager connection is configured with this fixed IPv4 address:
+
+```text
+172.20.10.2/28
+Gateway: 172.20.10.1
+```
+
+With that fixed address, the dashboard QR can stay stable across Raspberry Pi reboots:
+
+```text
+http://172.20.10.2:5000/
+```
+
+If the phone hotspot changes its network range in the future, update the static connection settings and regenerate `sovd-dashboard-qr.png`.
+
 ---
 
 ## Arduino LED Detector
