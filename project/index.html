@@ -503,7 +503,7 @@ footer {
             </div>
             <div class="status-tile">
                 <span class="status-title">LED Monitor</span>
-                <span class="status-value"><span id="led_dot" class="dot"></span><span id="led_status">UNKNOWN</span></span>
+                <span class="status-value"><span id="led_dot" class="dot"></span><span id="led_status">CONNECTING</span></span>
             </div>
         </div>
     </div>
@@ -588,7 +588,10 @@ const CLIENT_ID_KEY = "sovd_client_id";
 let clientId = localStorage.getItem(CLIENT_ID_KEY);
 
 if (!clientId) {
-    clientId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()) + Math.random().toString(16).slice(2);
+    const canUseRandomUUID = window.crypto && typeof window.crypto.randomUUID === "function";
+    clientId = canUseRandomUUID
+        ? window.crypto.randomUUID()
+        : String(Date.now()) + Math.random().toString(16).slice(2);
     localStorage.setItem(CLIENT_ID_KEY, clientId);
 }
 
@@ -724,38 +727,53 @@ function readDid() {
     .catch(err => console.error("ReadDID error:", err));
 }
 
-// ===== EVENT SOURCE: REAL-TIME VEHICLE STATE MONITORING =====
-const eventSource = new EventSource("/events");
-
-eventSource.onmessage = function(event) {
-    const rawData = event.data.trim();
-    console.log("📨 Evento SSE recibido:", rawData);
-
+function handleLedEvent(rawData) {
     if (rawData === "FAULT") {
         console.log("🚨 FAULT DETECTADO!");
-        
+
         // Transición visual: gradiente rojo oscuro
         document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
-        
+
         // Popup con notificación
         showPopup("⚠️ LED_REAR Disconnected", "fault");
         updateLedVisual("FAULT");
 
     } else if (rawData === "OK") {
         console.log("✅ OK DETECTADO!");
-        
+
         // Transición visual: gradiente gris técnico original
         document.body.style.background = "linear-gradient(135deg, #1c1c1c, #2c3e50)";
-        
+
         // Popup con notificación
         showPopup("✅ System Restored", "ok");
         updateLedVisual("OK");
     }
-};
+}
 
-eventSource.onerror = function(error) {
-    console.error("❌ Error SSE:", error);
-};
+// ===== EVENT SOURCE: REAL-TIME VEHICLE STATE MONITORING =====
+if (window.EventSource) {
+    const eventSource = new EventSource("/events");
+
+    eventSource.onopen = function() {
+        console.log("SSE conectado");
+    };
+
+    eventSource.onmessage = function(event) {
+        const rawData = event.data.trim().toUpperCase();
+        console.log("📨 Evento SSE recibido:", rawData);
+        handleLedEvent(rawData);
+    };
+
+    eventSource.onerror = function(error) {
+        console.error("❌ Error SSE:", error);
+        if (ledStatus.innerText === "CONNECTING" || ledStatus.innerText === "UNKNOWN") {
+            updateLedVisual("OFFLINE");
+        }
+    };
+} else {
+    console.error("EventSource no está soportado por este navegador");
+    updateLedVisual("OFFLINE");
+}
     
 refreshAll();
 refreshDiagnosticTrace();

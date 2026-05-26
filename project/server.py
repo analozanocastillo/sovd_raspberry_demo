@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, Response
+from collections import deque
 import threading
 import time
 
@@ -25,6 +26,9 @@ POSSIBLE_PORTS = [
 
 app = Flask(__name__)
 state_lock = threading.Lock()
+led_event_condition = threading.Condition()
+led_events = deque(maxlen=50)
+led_event_seq = 0
 LED_STATE_DID = "F1A1"
 # Shared in-memory ring buffer: deque(maxlen=100)
 diagnostic_events = _diagnostic_events
@@ -32,6 +36,22 @@ diagnostic_events = _diagnostic_events
 
 def get_client_id():
     return request.headers.get("X-SOVD-Client") or request.args.get("client_id")
+
+
+def get_led_state_name():
+    with state_lock:
+        fault_active = vehicle_state.get("rear_left_light", {}).get("fault_active", False)
+
+    return "FAULT" if fault_active else "OK"
+
+
+def publish_led_event(state):
+    global led_event_seq
+
+    with led_event_condition:
+        led_event_seq += 1
+        led_events.append((led_event_seq, state))
+        led_event_condition.notify_all()
 
 
 def send_led_state_by_uds(state):
@@ -73,24 +93,34 @@ def send_led_state_by_uds(state):
 
 
 def set_fault_active():
+    changed = False
+
     with state_lock:
+        changed = not vehicle_state["rear_left_light"]["fault_active"]
         vehicle_state["rear_left_light"]["fault_active"] = True
         vehicle_state["rear_left_light"]["fault_code"] = "B1234"
         vehicle_state["rear_left_light"]["fault_name"] = "Rear left LED failure"
         vehicle_state["rear_left_light"]["severity"] = "warning"
 
     print("[SOVD][SERIAL] Fallo activo:", vehicle_state["rear_left_light"], flush=True)
+    if changed:
+        publish_led_event("FAULT")
     send_led_state_by_uds("FAULT")
 
 
 def clear_fault():
+    changed = False
+
     with state_lock:
+        changed = vehicle_state["rear_left_light"]["fault_active"]
         vehicle_state["rear_left_light"]["fault_active"] = False
         vehicle_state["rear_left_light"]["fault_code"] = None
         vehicle_state["rear_left_light"]["fault_name"] = None
         vehicle_state["rear_left_light"]["severity"] = None
 
     print("[SOVD][SERIAL] Fallo eliminado:", vehicle_state["rear_left_light"], flush=True)
+    if changed:
+        publish_led_event("OK")
     send_led_state_by_uds("OK")
 
 
@@ -229,25 +259,31 @@ def handle_post_requests(path):
 def events():
 
     def stream():
-        last_state = None
+        with led_event_condition:
+            last_event_id = led_event_seq
+
+        # Estado inicial para que el navegador pinte el indicador al conectar.
+        yield f"data: {get_led_state_name()}\n\n"
 
         while True:
-            with state_lock:
-                current = vehicle_state.get("rear_left_light", {}).get("fault_active", False)
+            with led_event_condition:
+                led_event_condition.wait_for(
+                    lambda: led_events and led_events[-1][0] > last_event_id,
+                    timeout=15,
+                )
+                pending_events = [
+                    (event_id, state)
+                    for event_id, state in led_events
+                    if event_id > last_event_id
+                ]
 
-            # Solo envía cuando cambia, usando el formato que espera index.html.
-            if current != last_state:
-                last_state = current
-
-                if current:
-                    yield "data: FAULT\n\n"
-                else:
-                    yield "data: OK\n\n"
-
-            # Keep-alive para evitar timeouts en el navegador.
-            yield ": keepalive\n\n"
-
-            time.sleep(0.2)
+            if pending_events:
+                for event_id, state in pending_events:
+                    last_event_id = event_id
+                    yield f"data: {state}\n\n"
+            else:
+                # Keep-alive para evitar timeouts en el navegador.
+                yield ": keepalive\n\n"
 
     return Response(stream(), mimetype="text/event-stream")
 
