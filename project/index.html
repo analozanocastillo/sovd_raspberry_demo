@@ -730,6 +730,18 @@ function readDid() {
 function handleLedEvent(rawData) {
     console.log("LED EVENT:", rawData);
 
+    if (rawData.startsWith("CRASH:FAULT")) {
+    const parts = rawData.split(":");
+    const durationMs = parts.length >= 3 ? parts[2] : "unknown";
+
+    console.log("💥 CRASH DETECTED:", durationMs, "ms");
+
+    document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
+    showPopup("💥 Crash detected", "fault");
+
+    return;
+    }
+
     if (rawData === "SYSTEM:OK" || rawData === "OK") {
         console.log("✅ SYSTEM OK");
 

@@ -1,12 +1,22 @@
 const int LED_REAR_PIN = A0;
 const int LED_FRONT_PIN = A2;
+const int TOUCH_PIN = 2;
 
-// Ajustables (quizá el frontal necesite otro threshold)
+// Thresholds LED
 const int LED_REAR_REMOVED_THRESHOLD = 850;
 const int LED_FRONT_REMOVED_THRESHOLD = 850;
 
+// Impact sensor timing
+const unsigned long MIN_TOUCH_TIME = 40;
+const unsigned long MAX_TOUCH_TIME = 200;
+const unsigned long IMPACT_COOLDOWN_MS = 1000;
+
 bool rearFaultActive = false;
 bool frontFaultActive = false;
+
+bool lastTouchState = LOW;
+unsigned long touchStartTime = 0;
+unsigned long lastImpactTime = 0;
 
 int readAnalogAverage(int pin) {
   long sum = 0;
@@ -42,12 +52,44 @@ void checkLed(
   }
 }
 
+void checkImpactSensor() {
+  bool touchState = digitalRead(TOUCH_PIN);
+  unsigned long now = millis();
+
+  // Flanco de subida: empieza la detección
+  if (touchState == HIGH && lastTouchState == LOW) {
+    touchStartTime = now;
+  }
+
+  // Flanco de bajada: termina la detección
+  if (touchState == LOW && lastTouchState == HIGH) {
+    unsigned long touchDuration = now - touchStartTime;
+
+    bool validImpact =
+      touchDuration >= MIN_TOUCH_TIME &&
+      touchDuration <= MAX_TOUCH_TIME;
+
+    bool cooldownPassed =
+      now - lastImpactTime >= IMPACT_COOLDOWN_MS;
+
+    if (validImpact && cooldownPassed) {
+      lastImpactTime = now;
+
+      Serial.print("CRASH:FAULT:");
+      Serial.println(touchDuration);
+    }
+  }
+
+  lastTouchState = touchState;
+}
+
 void setup() {
   Serial.begin(9600);
 
+  pinMode(TOUCH_PIN, INPUT);
+
   delay(500);
 
-  // Estado inicial rear
   int rearValue = readAnalogAverage(LED_REAR_PIN);
 
   if (rearValue > LED_REAR_REMOVED_THRESHOLD) {
@@ -58,7 +100,6 @@ void setup() {
     Serial.println("LED_REAR:OK");
   }
 
-  // Estado inicial front
   int frontValue = readAnalogAverage(LED_FRONT_PIN);
 
   if (frontValue > LED_FRONT_REMOVED_THRESHOLD) {
@@ -85,5 +126,7 @@ void loop() {
     "LED_FRONT"
   );
 
-  delay(100);
+  checkImpactSensor();
+
+  delay(2);
 }

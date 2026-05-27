@@ -41,6 +41,7 @@ led_fault_states = {
 # Shared in-memory ring buffer: deque(maxlen=100)
 diagnostic_events = _diagnostic_events
 
+CRASH_STATE_DID = "F1A3"
 
 def get_client_id():
     return request.headers.get("X-SOVD-Client") or request.args.get("client_id")
@@ -151,6 +152,63 @@ def handle_led_serial_message(led_name, state):
 
     send_led_state_by_uds(led_name, state)
 
+def send_crash_event_by_uds(duration_ms):
+    payload_text = f"CRASH:FAULT:{duration_ms}"
+    payload = payload_text.encode("ascii").hex().upper()
+    uds_request = f"2E{CRASH_STATE_DID}{payload}"
+
+    add_trace(
+        "CRASH",
+        "event",
+        f"Crash detected - impact duration {duration_ms} ms",
+        payload_text,
+        "error",
+        global_event=True,
+    )
+    add_trace(
+        "UDS",
+        "tx",
+        f"WriteDataByIdentifier DID 0x{CRASH_STATE_DID}",
+        uds_request,
+        "tx",
+        global_event=True,
+    )
+
+    try:
+        result = send_uds_sequence([uds_request], delay_s=0.0, recv_timeout_s=1.0)[-1]
+        _, reply = result
+        add_trace(
+            "DoIP",
+            "rx" if reply else "error",
+            f"Crash event write {'acknowledged' if reply else 'timed out'}",
+            reply,
+            "rx" if reply else "error",
+            global_event=True,
+        )
+        print(f"[SOVD][UDS] {payload_text} sent: {result}", flush=True)
+    except Exception as e:
+        add_trace(
+            "DoIP",
+            "error",
+            f"Could not send crash event {payload_text}",
+            str(e),
+            "error",
+            global_event=True,
+        )
+        print(f"[SOVD][UDS] Could not send crash event {payload_text}: {e}", flush=True)
+
+def handle_crash_serial_message(line):
+    parts = line.split(":")
+    duration_ms = "unknown"
+
+    if len(parts) >= 3:
+        duration_ms = parts[2].strip()
+
+    print(f"[SOVD][SERIAL] CRASH detected, duration={duration_ms} ms", flush=True)
+
+    publish_led_event(f"CRASH:FAULT:{duration_ms}")
+    send_crash_event_by_uds(duration_ms)
+
 
 def set_fault_active():
     changed = False
@@ -222,11 +280,16 @@ def serial_listener():
 
                 print("[SOVD][SERIAL] RX:", repr(line), flush=True)
 
-                if ":" in line:
+                if line.startswith("CRASH:FAULT"):
+                    handle_crash_serial_message(line)
+
+                elif ":" in line:
                     led_name, state = line.split(":", 1)
                     handle_led_serial_message(led_name.strip(), state.strip())
+
                 elif "FAULT" in line:
                     handle_led_serial_message("LED_REAR", "FAULT")
+
                 elif "OK" in line:
                     handle_led_serial_message("LED_REAR", "OK")
 
