@@ -730,16 +730,51 @@ function readDid() {
 function handleLedEvent(rawData) {
     console.log("LED EVENT:", rawData);
 
+    if (rawData.startsWith("BATTERY:")) {
+        const parts = rawData.split(":");
+        const eventType = parts.length >= 2 ? parts[1] : "UNKNOWN";
+        const voltage = parts.length >= 3 ? parts[2] : "—";
+
+        battery_voltage.innerText = voltage + " V";
+
+        if (eventType === "UNDERVOLTAGE") {
+            console.log("🔋 BATTERY UNDERVOLTAGE:", voltage, "V");
+
+            document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
+            showPopup("⚠️ Battery undervoltage detected", "fault");
+            return;
+        }
+
+        if (eventType === "OVERVOLTAGE") {
+            console.log("🔋 BATTERY OVERVOLTAGE:", voltage, "V");
+
+            document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
+            showPopup("⚠️ Battery overvoltage detected", "fault");
+            return;
+        }
+
+        if (eventType === "OK") {
+            console.log("🔋 BATTERY OK:", voltage, "V");
+
+            document.body.style.background = "linear-gradient(135deg, #1c1c1c, #2c3e50)";
+            showPopup("✅ Battery voltage restored", "ok");
+            return;
+        }
+
+        // BATTERY:VOLTAGE solo actualiza el valor. No popup.
+        return;
+    }
+
     if (rawData.startsWith("CRASH:FAULT")) {
-    const parts = rawData.split(":");
-    const durationMs = parts.length >= 3 ? parts[2] : "unknown";
+        const parts = rawData.split(":");
+        const durationMs = parts.length >= 3 ? parts[2] : "unknown";
 
-    console.log("💥 CRASH DETECTED:", durationMs, "ms");
+        console.log("💥 CRASH DETECTED:", durationMs, "ms");
 
-    document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
-    showPopup("💥 Crash detected", "fault");
+        document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
+        showPopup("💥 Crash detected", "fault");
 
-    return;
+        return;
     }
 
     if (rawData === "SYSTEM:OK" || rawData === "OK") {

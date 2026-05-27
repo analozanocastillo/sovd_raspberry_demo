@@ -8,6 +8,7 @@ from routes.ui_routes import handle_ui
 from data.vehicle_state import vehicle_state
 from data.diagnostic_trace import add_trace, diagnostic_events as _diagnostic_events, get_trace
 from doip_client import send_uds_sequence
+from data.simulated_data import DATA
 
 try:
     import serial
@@ -42,6 +43,8 @@ led_fault_states = {
 diagnostic_events = _diagnostic_events
 
 CRASH_STATE_DID = "F1A3"
+
+BATTERY_STATE_DID = "F1A4"
 
 def get_client_id():
     return request.headers.get("X-SOVD-Client") or request.args.get("client_id")
@@ -209,6 +212,93 @@ def handle_crash_serial_message(line):
     publish_led_event(f"CRASH:FAULT:{duration_ms}")
     send_crash_event_by_uds(duration_ms)
 
+def send_battery_event_by_uds(status, voltage):
+    payload_text = f"BATTERY:{status}:{voltage}"
+    payload = payload_text.encode("ascii").hex().upper()
+    uds_request = f"2E{BATTERY_STATE_DID}{payload}"
+
+    level = "error" if status in ("UNDERVOLTAGE", "OVERVOLTAGE") else "success"
+
+    if status == "UNDERVOLTAGE":
+        message = f"Battery undervoltage detected - {voltage} V"
+    elif status == "OVERVOLTAGE":
+        message = f"Battery overvoltage detected - {voltage} V"
+    else:
+        message = f"Battery voltage restored - {voltage} V"
+
+    add_trace(
+        "BATTERY",
+        "event",
+        message,
+        payload_text,
+        level,
+        global_event=True,
+    )
+    add_trace(
+        "UDS",
+        "tx",
+        f"WriteDataByIdentifier DID 0x{BATTERY_STATE_DID}",
+        uds_request,
+        "tx",
+        global_event=True,
+    )
+
+    try:
+        result = send_uds_sequence([uds_request], delay_s=0.0, recv_timeout_s=1.0)[-1]
+        _, reply = result
+        add_trace(
+            "DoIP",
+            "rx" if reply else "error",
+            f"Battery event write {'acknowledged' if reply else 'timed out'}",
+            reply,
+            "rx" if reply else "error",
+            global_event=True,
+        )
+        print(f"[SOVD][UDS] {payload_text} sent: {result}", flush=True)
+    except Exception as e:
+        add_trace(
+            "DoIP",
+            "error",
+            f"Could not send battery event {payload_text}",
+            str(e),
+            "error",
+            global_event=True,
+        )
+        print(f"[SOVD][UDS] Could not send battery event {payload_text}: {e}", flush=True)
+
+def handle_battery_serial_message(line):
+    parts = line.split(":")
+
+    if len(parts) < 3:
+        print(f"[SOVD][SERIAL] Invalid battery message: {line}", flush=True)
+        return
+
+    event_type = parts[1].strip()
+    voltage = parts[2].strip()
+
+    try:
+        voltage_value = float(voltage)
+
+        with state_lock:
+            DATA["power"]["battery_voltage"] = voltage_value
+
+            if event_type == "UNDERVOLTAGE":
+                DATA["power"]["power_mode"] = "UNDERVOLTAGE"
+            elif event_type == "OVERVOLTAGE":
+                DATA["power"]["power_mode"] = "OVERVOLTAGE"
+            elif event_type == "OK":
+                DATA["power"]["power_mode"] = "NORMAL"
+
+    except Exception as e:
+        print(f"[SOVD][BATTERY] Could not update simulated battery voltage: {e}", flush=True)
+
+    print(f"[SOVD][SERIAL] BATTERY {event_type} {voltage} V", flush=True)
+
+    publish_led_event(f"BATTERY:{event_type}:{voltage}")
+
+    if event_type in ("UNDERVOLTAGE", "OVERVOLTAGE", "OK"):
+        send_battery_event_by_uds(event_type, voltage)
+
 
 def set_fault_active():
     changed = False
@@ -280,7 +370,10 @@ def serial_listener():
 
                 print("[SOVD][SERIAL] RX:", repr(line), flush=True)
 
-                if line.startswith("CRASH:FAULT"):
+                if line.startswith("BATTERY:"):
+                    handle_battery_serial_message(line)
+
+                elif line.startswith("CRASH:FAULT"):
                     handle_crash_serial_message(line)
 
                 elif ":" in line:

@@ -18,6 +18,29 @@ bool lastTouchState = LOW;
 unsigned long touchStartTime = 0;
 unsigned long lastImpactTime = 0;
 
+const int BATTERY_POT_PIN = A1;
+
+// Simulación de batería
+const float BATTERY_MIN_VOLTAGE = 9.0;
+const float BATTERY_MAX_VOLTAGE = 16.0;
+
+const float BATTERY_UNDERVOLTAGE_THRESHOLD = 11.0;
+const float BATTERY_OVERVOLTAGE_THRESHOLD = 14.5;
+
+const float BATTERY_UNDERVOLTAGE_ENTER = 11.0;
+const float BATTERY_UNDERVOLTAGE_EXIT  = 11.3;
+
+const float BATTERY_OVERVOLTAGE_ENTER = 14.6;
+const float BATTERY_OVERVOLTAGE_EXIT  = 14.3;
+
+const unsigned long BATTERY_SEND_INTERVAL_MS = 250;
+const float BATTERY_SEND_DELTA = 0.1;
+
+unsigned long lastBatterySendTime = 0;
+float lastSentBatteryVoltage = -1.0;
+
+String lastBatteryStatus = "UNKNOWN";
+
 int readAnalogAverage(int pin) {
   long sum = 0;
 
@@ -83,6 +106,81 @@ void checkImpactSensor() {
   lastTouchState = touchState;
 }
 
+float readBatteryVoltage() {
+  int raw = readAnalogAverage(BATTERY_POT_PIN);
+
+  float voltage =
+    BATTERY_MIN_VOLTAGE +
+    ((float)raw / 1023.0) * (BATTERY_MAX_VOLTAGE - BATTERY_MIN_VOLTAGE);
+
+  return voltage;
+}
+
+String getBatteryStatus(float voltage) {
+  if (lastBatteryStatus == "UNDERVOLTAGE") {
+    if (voltage > BATTERY_UNDERVOLTAGE_EXIT) {
+      return "OK";
+    }
+    return "UNDERVOLTAGE";
+  }
+
+  if (lastBatteryStatus == "OVERVOLTAGE") {
+    if (voltage < BATTERY_OVERVOLTAGE_EXIT) {
+      return "OK";
+    }
+    return "OVERVOLTAGE";
+  }
+
+  if (voltage < BATTERY_UNDERVOLTAGE_ENTER) {
+    return "UNDERVOLTAGE";
+  }
+
+  if (voltage > BATTERY_OVERVOLTAGE_ENTER) {
+    return "OVERVOLTAGE";
+  }
+
+  return "OK";
+}
+
+void sendBatteryVoltage(float voltage) {
+  Serial.print("BATTERY:VOLTAGE:");
+  Serial.println(voltage, 1);
+}
+
+void sendBatteryStatus(String status, float voltage) {
+  Serial.print("BATTERY:");
+  Serial.print(status);
+  Serial.print(":");
+  Serial.println(voltage, 1);
+}
+
+void checkBatteryVoltage() {
+  unsigned long now = millis();
+
+  float voltage = readBatteryVoltage();
+  String currentStatus = getBatteryStatus(voltage);
+
+  bool voltageChanged =
+    lastSentBatteryVoltage < 0 ||
+    abs(voltage - lastSentBatteryVoltage) >= BATTERY_SEND_DELTA;
+
+  bool intervalPassed =
+    now - lastBatterySendTime >= BATTERY_SEND_INTERVAL_MS;
+
+  // Actualización visual en tiempo real
+  if (voltageChanged && intervalPassed) {
+    sendBatteryVoltage(voltage);
+    lastSentBatteryVoltage = voltage;
+    lastBatterySendTime = now;
+  }
+
+  // Evento solo cuando cambia el estado: OK / UNDERVOLTAGE / OVERVOLTAGE
+  if (currentStatus != lastBatteryStatus) {
+    sendBatteryStatus(currentStatus, voltage);
+    lastBatteryStatus = currentStatus;
+  }
+}
+
 void setup() {
   Serial.begin(9600);
 
@@ -127,6 +225,8 @@ void loop() {
   );
 
   checkImpactSensor();
+
+  checkBatteryVoltage();
 
   delay(2);
 }
