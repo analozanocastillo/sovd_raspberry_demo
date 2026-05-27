@@ -29,7 +29,15 @@ state_lock = threading.Lock()
 led_event_condition = threading.Condition()
 led_events = deque(maxlen=50)
 led_event_seq = 0
-LED_STATE_DID = "F1A1"
+LED_STATE_DIDS = {
+    "LED_REAR": "F1A1",
+    "LED_FRONT": "F1A2",
+}
+
+led_fault_states = {
+    "LED_REAR": False,
+    "LED_FRONT": False,
+}
 # Shared in-memory ring buffer: deque(maxlen=100)
 diagnostic_events = _diagnostic_events
 
@@ -54,22 +62,31 @@ def publish_led_event(state):
         led_event_condition.notify_all()
 
 
-def send_led_state_by_uds(state):
-    payload = f"LED_REAR:{state}".encode("ascii").hex().upper()
-    uds_request = f"2E{LED_STATE_DID}{payload}"
+def send_led_state_by_uds(led_name, state):
+    did = LED_STATE_DIDS.get(led_name)
+
+    if did is None:
+        print(f"[SOVD][UDS] Unknown LED name: {led_name}", flush=True)
+        return
+
+    payload_text = f"{led_name}:{state}"
+    payload = payload_text.encode("ascii").hex().upper()
+    uds_request = f"2E{did}{payload}"
+
+    human_name = "Rear LED" if led_name == "LED_REAR" else "Front LED"
 
     add_trace(
         "LED",
         "event",
-        f"Rear-left LED state changed to {state}",
-        f"LED_REAR:{state}",
+        f"{human_name} state changed to {state}",
+        payload_text,
         "error" if state == "FAULT" else "success",
         global_event=True,
     )
     add_trace(
         "UDS",
         "tx",
-        f"WriteDataByIdentifier DID 0x{LED_STATE_DID}",
+        f"WriteDataByIdentifier DID 0x{did}",
         uds_request,
         "tx",
         global_event=True,
@@ -81,15 +98,58 @@ def send_led_state_by_uds(state):
         add_trace(
             "DoIP",
             "rx" if reply else "error",
-            f"LED state write {'acknowledged' if reply else 'timed out'}",
+            f"{human_name} state write {'acknowledged' if reply else 'timed out'}",
             reply,
             "rx" if reply else "error",
             global_event=True,
         )
-        print(f"[SOVD][UDS] LED state sent: {result}", flush=True)
+        print(f"[SOVD][UDS] {payload_text} sent: {result}", flush=True)
     except Exception as e:
-        add_trace("DoIP", "error", f"Could not send LED state {state}", str(e), "error", global_event=True)
-        print(f"[SOVD][UDS] Could not send LED state {state}: {e}", flush=True)
+        add_trace("DoIP", "error", f"Could not send {payload_text}", str(e), "error", global_event=True)
+        print(f"[SOVD][UDS] Could not send {payload_text}: {e}", flush=True)
+
+def handle_led_serial_message(led_name, state):
+    if led_name not in LED_STATE_DIDS:
+        print(f"[SOVD][SERIAL] LED desconocido: {led_name}", flush=True)
+        return
+
+    if state not in ("FAULT", "OK"):
+        print(f"[SOVD][SERIAL] Estado LED desconocido: {state}", flush=True)
+        return
+
+    changed = False
+    all_ok_after_update = False
+
+    with state_lock:
+        previous_fault = led_fault_states.get(led_name, False)
+        new_fault = state == "FAULT"
+
+        changed = previous_fault != new_fault
+        led_fault_states[led_name] = new_fault
+        all_ok_after_update = not any(led_fault_states.values())
+
+        # Mantener compatibilidad con la lógica vieja del rear LED
+        if led_name == "LED_REAR":
+            vehicle_state["rear_left_light"]["fault_active"] = new_fault
+
+            if new_fault:
+                vehicle_state["rear_left_light"]["fault_code"] = "B1234"
+                vehicle_state["rear_left_light"]["fault_name"] = "Rear left LED failure"
+                vehicle_state["rear_left_light"]["severity"] = "warning"
+            else:
+                vehicle_state["rear_left_light"]["fault_code"] = None
+                vehicle_state["rear_left_light"]["fault_name"] = None
+                vehicle_state["rear_left_light"]["severity"] = None
+
+    print(f"[SOVD][SERIAL] {led_name} -> {state}", flush=True)
+
+    if changed:
+        if state == "FAULT":
+            publish_led_event(f"{led_name}:FAULT")
+        elif state == "OK" and all_ok_after_update:
+            publish_led_event("SYSTEM:OK")
+
+    send_led_state_by_uds(led_name, state)
 
 
 def set_fault_active():
@@ -162,10 +222,13 @@ def serial_listener():
 
                 print("[SOVD][SERIAL] RX:", repr(line), flush=True)
 
-                if "FAULT" in line:
-                    set_fault_active()
+                if ":" in line:
+                    led_name, state = line.split(":", 1)
+                    handle_led_serial_message(led_name.strip(), state.strip())
+                elif "FAULT" in line:
+                    handle_led_serial_message("LED_REAR", "FAULT")
                 elif "OK" in line:
-                    clear_fault()
+                    handle_led_serial_message("LED_REAR", "OK")
 
         except Exception as e:
             print("[SOVD][SERIAL] ERROR:", e, flush=True)

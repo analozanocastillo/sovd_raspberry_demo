@@ -12,8 +12,8 @@ DIDS = {
     "F40D": "45%",
     "F40E": "92C",
     "F1A1": "LED_REAR:OK",
+    "F1A2": "LED_FRONT:OK",
 }
-
 
 def build_doip_response(source_addr, target_addr, uds_response):
     response_payload = struct.pack("!HH", target_addr, source_addr) + uds_response
@@ -52,7 +52,7 @@ def handle_uds_request(uds):
 
         print("WRITE DID REQUESTED:", did_hex, value, flush=True)
 
-        if did_hex != "F1A1":
+        if did_hex not in ("F1A1", "F1A2"):
             print("WRITE DID NOT SUPPORTED:", did_hex, flush=True)
             return b"\x7F\x2E\x31"
 

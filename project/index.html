@@ -728,25 +728,48 @@ function readDid() {
 }
 
 function handleLedEvent(rawData) {
-    if (rawData === "FAULT") {
-        console.log("🚨 FAULT DETECTADO!");
+    console.log("LED EVENT:", rawData);
 
-        // Transición visual: gradiente rojo oscuro
-        document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
+    if (rawData === "SYSTEM:OK" || rawData === "OK") {
+        console.log("✅ SYSTEM OK");
 
-        // Popup con notificación
-        showPopup("⚠️ LED_REAR Disconnected", "fault");
-        updateLedVisual("FAULT");
-
-    } else if (rawData === "OK") {
-        console.log("✅ OK DETECTADO!");
-
-        // Transición visual: gradiente gris técnico original
         document.body.style.background = "linear-gradient(135deg, #1c1c1c, #2c3e50)";
-
-        // Popup con notificación
         showPopup("✅ System Restored", "ok");
         updateLedVisual("OK");
+        return;
+    }
+
+    if (!rawData.includes(":")) {
+        console.warn("Unknown LED event:", rawData);
+        return;
+    }
+
+    const parts = rawData.split(":");
+    const ledName = parts[0];
+    const state = parts[1];
+
+    let displayName = ledName;
+
+    if (ledName === "LED_REAR") {
+        displayName = "Rear LED";
+    } else if (ledName === "LED_FRONT") {
+        displayName = "Front LED";
+    }
+
+    if (state === "FAULT") {
+        console.log("🚨 FAULT DETECTADO:", ledName);
+
+        document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
+        showPopup(`⚠️ ${displayName} Disconnected`, "fault");
+        updateLedVisual("FAULT");
+        return;
+    }
+
+    if (state === "OK") {
+        // No mostramos popup individual.
+        // El popup OK solo aparece cuando server.py envía SYSTEM:OK.
+        console.log("LED restored:", ledName);
+        return;
     }
 }
 
