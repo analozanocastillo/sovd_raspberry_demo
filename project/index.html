@@ -735,9 +735,17 @@ function formatTraceTime(timestamp) {
 
 function renderDiagnosticTrace(items) {
     if (items && items.length > 0) {
+        const maxTraceId = Math.max(...items.map(item => Number(item.id) || 0));
+
+        if (traceClearAfterId > 0 && maxTraceId < traceClearAfterId) {
+            traceClearAfterId = 0;
+            latestSeenTraceId = 0;
+            localStorage.removeItem(TRACE_CLEAR_KEY);
+        }
+
         latestSeenTraceId = Math.max(
             latestSeenTraceId,
-            ...items.map(item => Number(item.id) || 0)
+            maxTraceId
         );
     }
 
