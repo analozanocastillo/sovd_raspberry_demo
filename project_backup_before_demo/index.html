@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOVD Vehicle Diagnostics Dashboard</title>
+
+<style>
+:root {
+    --bg-main: #1d2430;
+    --bg-card: #293241;
+    --border-color: #3f4a5f;
+    --text-main: #ffffff;
+    --text-muted: #a0aec0;
+    --accent-blue: #38bdf8;
+    --accent-green: #2ecc71;
+    --accent-red: #e74c3c;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    transition: background 0.5s ease;
+    overflow-x: hidden;
+}
+
+header {
+    background-color: #171d26;
+    border-bottom: 1px solid var(--border-color);
+    padding: 25px 20px;
+    text-align: left;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text-main);
+}
+
+header p {
+    margin: 6px 0 0 0;
+    color: var(--accent-blue);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.header-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.status-strip {
+    max-width: 1100px;
+    margin: 18px auto 0 auto;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.status-tile {
+    background-color: #111820;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 12px;
+}
+
+.status-title {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+}
+
+.status-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 5px;
+    font-family: 'Consolas', Monaco, monospace;
+    font-size: 0.95rem;
+    font-weight: 700;
+    min-width: 0;
+}
+
+section {
+    max-width: 1100px;
+    margin: 30px auto;
+    padding: 0 20px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.full-width {
+    grid-column: span 2;
+}
+
+.card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.card h2 {
+    margin-top: 0;
+    margin-bottom: 18px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent-blue);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+@media (max-width: 550px) {
+    .grid { grid-template-columns: 1fr; }
+}
+
+.data-item {
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.02);
+    padding: 12px;
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.data-label {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.data-value {
+    font-family: 'Consolas', Monaco, monospace;
+    font-weight: bold;
+    font-size: 1rem;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+/* Indicadores LED */
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--text-muted);
+}
+
+.dot.active-green {
+    background-color: var(--accent-green);
+    box-shadow: 0 0 8px var(--accent-green);
+}
+
+.dot.active-red {
+    background-color: var(--accent-red);
+    box-shadow: 0 0 8px var(--accent-red);
+}
+
+/* Terminal UDS */
+.diagnostic-box {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.selector-group {
+    display: flex;
+    gap: 10px;
+}
+
+select {
+    flex-grow: 1;
+    min-width: 0;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.trace-window {
+    background-color: #11161d;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-family: 'Consolas', 'Lucida Console', monospace;
+    font-size: 0.8rem;
+    height: 420px;
+    overflow-y: auto;
+}
+
+.trace-row {
+    display: grid;
+    grid-template-columns: 76px 58px 64px minmax(0, 1fr);
+    gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    align-items: start;
+}
+
+.trace-time,
+.trace-source {
+    color: var(--text-muted);
+}
+
+.trace-direction {
+    color: var(--accent-blue);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.trace-message {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.trace-detail {
+    display: block;
+    color: var(--text-muted);
+    margin-top: 3px;
+    overflow-wrap: anywhere;
+}
+
+.trace-row.tx .trace-direction { color: #f39c12; }
+.trace-row.rx .trace-direction,
+.trace-row.success .trace-direction { color: var(--accent-green); }
+.trace-row.error .trace-direction { color: var(--accent-red); }
+.trace-row.event .trace-direction { color: #f472b6; }
+
+/* Botonera */
+.control-panel {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+button {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.1s ease;
+    min-height: 44px;
+}
+
+.btn-primary { background-color: #3498db; color: white; }
+.btn-primary:hover { background-color: #2980b9; }
+
+.btn-success { background-color: #2ecc71; color: white; }
+.btn-success:hover { background-color: #27ae60; }
+
+.btn-danger { background-color: #e74c3c; color: white; }
+.btn-danger:hover { background-color: #c0392b; }
+
+.btn-secondary { background-color: #465468; color: white; }
+.btn-secondary:hover { background-color: #56657b; }
+
+/* === TU POP-UP ORIGINAL CON TUS GRADIENTES PROPIOS === */
+.popup {
+    position: fixed;
+    top: 30px;
+    right: -400px;
+    background: #333;
+    color: white;
+    padding: 25px 40px;
+    border-radius: 12px;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+    transition: right 0.5s ease;
+    font-weight: bold;
+    font-size: 18px;
+    z-index: 9999; /* Asegura que se dibuje por encima de las tarjetas */
+    max-width: calc(100vw - 40px);
+}
+
+.popup.show {
+    right: 30px;
+}
+
+.popup.fault {
+    background: linear-gradient(135deg, #ff4d4d, #b30000);
+    animation: pulse 1s infinite;
+}
+
+.popup.ok {
+    background: linear-gradient(135deg, #00cc66, #00994d);
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.05); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+footer {
+    text-align: center;
+    font-size: 0.8rem;
+    padding: 30px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border-color);
+    margin-top: 40px;
+}
+
+@media (max-width: 850px) {
+    header {
+        padding: 20px 16px;
+    }
+
+    section {
+        grid-template-columns: 1fr;
+    }
+
+    .full-width {
+        grid-column: span 1 !important;
+    }
+
+    .status-strip {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .trace-row {
+        grid-template-columns: 64px 48px 54px minmax(0, 1fr) !important;
+    }
+}
+
+@media (max-width: 600px) {
+    header {
+        padding: 16px 12px;
+    }
+
+    header h1 {
+        font-size: 1.18rem;
+        letter-spacing: 0.02em;
+    }
+
+    header p {
+        font-size: 0.8rem;
+    }
+
+    .status-strip {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-top: 14px;
+    }
+
+    .status-tile {
+        padding: 9px 10px;
+    }
+
+    .status-title {
+        font-size: 0.68rem;
+    }
+
+    .status-value {
+        font-size: 0.84rem;
+    }
+
+    section {
+        margin: 16px auto;
+        padding: 0 10px;
+        gap: 12px;
+    }
+
+    .card {
+        padding: 14px;
+        border-radius: 6px;
+    }
+
+    .card h2 {
+        font-size: 0.86rem;
+        margin-bottom: 12px;
+    }
+
+    .grid {
+        gap: 9px;
+    }
+
+    .data-item {
+        padding: 10px;
+        align-items: flex-start;
+    }
+
+    .data-label {
+        font-size: 0.78rem;
+    }
+
+    .data-value {
+        font-size: 0.86rem;
+    }
+
+    .selector-group {
+        flex-direction: column;
+    }
+
+    select,
+    button {
+        width: 100%;
+        font-size: 0.88rem;
+    }
+
+    select {
+        padding: 12px 10px;
+    }
+
+    .trace-window {
+        height: 56vh;
+        min-height: 330px;
+        font-size: 0.72rem;
+    }
+
+    .trace-row {
+        grid-template-columns: 58px 42px minmax(0, 1fr) !important;
+        gap: 6px;
+        padding: 8px;
+    }
+
+    .trace-direction {
+        grid-column: 2;
+    }
+
+    .trace-message {
+        grid-column: 1 / -1;
+        padding-left: 0;
+    }
+
+    .control-panel {
+        gap: 8px;
+    }
+
+    .popup {
+        top: 12px;
+        right: -100vw;
+        padding: 14px 16px;
+        font-size: 0.92rem;
+        border-radius: 8px;
+    }
+
+    .popup.show {
+        right: 10px;
+    }
+
+    footer {
+        padding: 20px 12px;
+        margin-top: 20px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div id="popup" class="popup"></div>
+
+<header>
+    <div class="header-inner">
+        <h1>SOVD Vehicle Diagnostics</h1>
+        <p>Service-Oriented Vehicle Diagnostics Simulation</p>
+        <div class="status-strip">
+            <div class="status-tile">
+                <span class="status-title">Gateway</span>
+                <span class="status-value"><span class="dot active-green"></span>HTTP :5000</span>
+            </div>
+            <div class="status-tile">
+                <span class="status-title">DoIP ECU</span>
+                <span class="status-value"><span class="dot active-green"></span>TCP :13400</span>
+            </div>
+            <div class="status-tile">
+                <span class="status-title">Protocol</span>
+                <span class="status-value">UDS over DoIP</span>
+            </div>
+            <div class="status-tile">
+                <span class="status-title">LED Monitor</span>
+                <span class="status-value"><span id="led_dot" class="dot"></span><span id="led_status">CONNECTING</span></span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<section>
+
+    <div class="card">
+        <h2>Vehicle Identity</h2>
+        <div class="grid">
+            <div class="data-item"><span class="data-label">Vehicle ID</span><span class="data-value" id="vehicle_id">—</span></div>
+            <div class="data-item"><span class="data-label">Brand</span><span class="data-value" id="brand">—</span></div>
+            <div class="data-item"><span class="data-label">Model</span><span class="data-value" id="model">—</span></div>
+            <div class="data-item">
+                <span class="data-label">Ignition State</span>
+                <span class="status-indicator data-value">
+                    <span id="ignition_dot" class="dot"></span>
+                    <span id="ignition">—</span>
+                </span>
+            </div>
+            <div class="data-item"><span class="data-label">Uptime</span><span class="data-value" id="uptime">— s</span></div>
+            <div class="data-item"><span class="data-label">Ambient Temp</span><span class="data-value" id="ambient_temp" style="color: #f39c12;">— °C</span></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Power & Bus Telemetry</h2>
+        <div class="grid">
+            <div class="data-item"><span class="data-label">Battery Voltage</span><span class="data-value" id="battery_voltage" style="color: #38bdf8;">— V</span></div>
+            <div class="data-item"><span class="data-label">Battery Current</span><span class="data-value" id="battery_current" style="color: var(--accent-green);">— A</span></div>
+            <div class="data-item" style="grid-column: span 2;"><span class="data-label">Power Mode</span><span class="data-value" id="power_mode">—</span></div>
+        </div>
+    </div>
+
+    <div class="card full-width">
+        <h2>SOVD Diagnostic Console</h2>
+        <div class="diagnostic-box">
+            <div class="selector-group">
+                <select id="did_select">
+                    <option value="F190">F190 - VIN (Vehicle Identification Number)</option>
+                    <option value="F187">F187 - ECU Software Version Number</option>
+                    <option value="F18C">F18C - ECU Hardware Version Number</option>
+                    <option value="F40C">F40C - Current Engine RPM</option>
+                    <option value="F40D">F40D - Engine Load Value</option>
+                    <option value="F40E">F40E - Engine Coolant Temperature</option>
+                </select>
+                <button class="btn-primary" onclick="readDid()">Execute ReadDID</button>
+            </div>
+
+            <div class="trace-window" id="diagnostic_trace">
+                <div class="trace-row">
+                    <span class="trace-time">--:--:--</span>
+                    <span class="trace-source">TRACE</span>
+                    <span class="trace-direction">IDLE</span>
+                    <span class="trace-message">Waiting for diagnostic activity...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card full-width">
+        <h2>Simulation Controls</h2>
+        <div class="control-panel">
+            <button class="btn-success" onclick="ignitionOn()">⚡ Ignition ON</button>
+            <button class="btn-danger" onclick="ignitionOff()">🛑 Ignition OFF</button>
+        </div>
+    </div>
+
+</section>
+
+<footer>
+    SOVD Simulation Framework • Raspberry Pi Edge Node
+</footer>
+
+<script>
+const BASE_URL = window.location.origin;
+const diagnosticTrace = document.getElementById("diagnostic_trace");
+const popup = document.getElementById("popup");
+const ledDot = document.getElementById("led_dot");
+const ledStatus = document.getElementById("led_status");
+const CLIENT_ID_KEY = "sovd_client_id";
+let clientId = localStorage.getItem(CLIENT_ID_KEY);
+
+if (!clientId) {
+    const canUseRandomUUID = window.crypto && typeof window.crypto.randomUUID === "function";
+    clientId = canUseRandomUUID
+        ? window.crypto.randomUUID()
+        : String(Date.now()) + Math.random().toString(16).slice(2);
+    localStorage.setItem(CLIENT_ID_KEY, clientId);
+}
+
+function clientFetch(url, options = {}) {
+    const headers = new Headers(options.headers || {});
+    headers.set("X-SOVD-Client", clientId);
+    return fetch(url, {...options, headers});
+}
+
+function updateIgnitionVisual(state) {
+    const dot = document.getElementById("ignition_dot");
+    if(state && state.toUpperCase() === "ON") {
+        dot.className = "dot active-green";
+    } else {
+        dot.className = "dot active-red";
+    }
+}
+
+function updateLedVisual(state) {
+    ledStatus.innerText = state;
+    if (state === "FAULT") {
+        ledDot.className = "dot active-red";
+    } else if (state === "OK") {
+        ledDot.className = "dot active-green";
+    } else {
+        ledDot.className = "dot";
+    }
+}
+
+// TU FUNCIÓN POPUP ORIGINAL (Duración de 3 segundos tal cual)
+function showPopup(message, type) {
+    popup.innerHTML = message;
+    popup.className = "popup show " + type;
+
+    setTimeout(() => {
+        popup.className = "popup " + type;
+    }, 3000);
+}
+
+function refreshAll() {
+    clientFetch(`${BASE_URL}/vehicle`).then(r=>r.json()).then(d=>{
+        vehicle_id.innerText = d.id || '—';
+        brand.innerText = d.brand || '—';
+        model.innerText = d.model || '—';
+        ignition.innerText = d.ignition || '—';
+        uptime.innerText = (d.uptime_s !== undefined) ? d.uptime_s + " s" : "— s";
+        ambient_temp.innerText = (d.ambient_temp_c !== undefined) ? d.ambient_temp_c + " °C" : "— °C";
+        
+        updateIgnitionVisual(d.ignition);
+    }).catch(err => console.error("Error:", err));
+
+    clientFetch(`${BASE_URL}/vehicle/power`).then(r=>r.json()).then(d=>{
+        battery_voltage.innerText = (d.battery_voltage !== undefined) ? d.battery_voltage + " V" : "— V";
+        battery_current.innerText = (d.battery_current !== undefined) ? d.battery_current + " A" : "— A";
+        power_mode.innerText = d.power_mode || '—';
+    }).catch(err => console.error("Error:", err));
+}
+
+function formatTraceTime(timestamp) {
+    if (!timestamp) return "--:--:--";
+    const parts = timestamp.split("T");
+    return parts.length > 1 ? parts[1] : timestamp;
+}
+
+function renderDiagnosticTrace(items) {
+    if (!items || items.length === 0) {
+        return;
+    }
+
+    diagnosticTrace.innerHTML = "";
+
+    items.forEach(item => {
+        const row = document.createElement("div");
+        row.className = `trace-row ${item.level || "info"}`;
+
+        const time = document.createElement("span");
+        time.className = "trace-time";
+        time.innerText = formatTraceTime(item.timestamp);
+
+        const source = document.createElement("span");
+        source.className = "trace-source";
+        source.innerText = item.source || "TRACE";
+
+        const direction = document.createElement("span");
+        direction.className = "trace-direction";
+        direction.innerText = item.direction || "info";
+
+        const message = document.createElement("span");
+        message.className = "trace-message";
+        message.innerText = item.message || "";
+
+        if (item.detail) {
+            const detail = document.createElement("span");
+            detail.className = "trace-detail";
+            detail.innerText = item.detail;
+            message.appendChild(detail);
+        }
+
+        row.appendChild(time);
+        row.appendChild(source);
+        row.appendChild(direction);
+        row.appendChild(message);
+        diagnosticTrace.appendChild(row);
+    });
+
+    diagnosticTrace.scrollTop = diagnosticTrace.scrollHeight;
+}
+
+function refreshDiagnosticTrace() {
+    clientFetch(`${BASE_URL}/diagnostics/trace?limit=80`)
+        .then(r => r.json())
+        .then(d => renderDiagnosticTrace(d.items || []))
+        .catch(err => console.error("Trace error:", err));
+}
+
+function ignitionOn(){ 
+    clientFetch(`${BASE_URL}/ignition/on`).then(refreshAll); 
+}
+function ignitionOff(){ 
+    clientFetch(`${BASE_URL}/ignition/off`).then(refreshAll); 
+}
+
+function readDid() {
+    const did = document.getElementById("did_select").value;
+
+    clientFetch(`${BASE_URL}/uds/readDataByIdentifier`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ did: did })
+    })
+    .then(r => r.json())
+    .then(() => refreshDiagnosticTrace())
+    .catch(err => console.error("ReadDID error:", err));
+}
+
+function handleLedEvent(rawData) {
+    if (rawData === "FAULT") {
+        console.log("🚨 FAULT DETECTADO!");
+
+        // Transición visual: gradiente rojo oscuro
+        document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
+
+        // Popup con notificación
+        showPopup("⚠️ LED_REAR Disconnected", "fault");
+        updateLedVisual("FAULT");
+
+    } else if (rawData === "OK") {
+        console.log("✅ OK DETECTADO!");
+
+        // Transición visual: gradiente gris técnico original
+        document.body.style.background = "linear-gradient(135deg, #1c1c1c, #2c3e50)";
+
+        // Popup con notificación
+        showPopup("✅ System Restored", "ok");
+        updateLedVisual("OK");
+    }
+}
+
+// ===== EVENT SOURCE: REAL-TIME VEHICLE STATE MONITORING =====
+if (window.EventSource) {
+    const eventSource = new EventSource("/events");
+
+    eventSource.onopen = function() {
+        console.log("SSE conectado");
+    };
+
+    eventSource.onmessage = function(event) {
+        const rawData = event.data.trim().toUpperCase();
+        console.log("📨 Evento SSE recibido:", rawData);
+        handleLedEvent(rawData);
+    };
+
+    eventSource.onerror = function(error) {
+        console.error("❌ Error SSE:", error);
+        if (ledStatus.innerText === "CONNECTING" || ledStatus.innerText === "UNKNOWN") {
+            updateLedVisual("OFFLINE");
+        }
+    };
+} else {
+    console.error("EventSource no está soportado por este navegador");
+    updateLedVisual("OFFLINE");
+}
+    
+refreshAll();
+refreshDiagnosticTrace();
+setInterval(refreshDiagnosticTrace, 1000);
+</script>
+
+</body>
+</html>
