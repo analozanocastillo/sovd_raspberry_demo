@@ -7,8 +7,8 @@ The project combines:
 - A Flask REST API and web dashboard on port `5000`
 - A simulated DoIP ECU on TCP port `13400`
 - UDS `ReadDataByIdentifier` requests through DoIP
-- An Arduino-based rear-left LED connect/disconnect detector
-- Real-time browser notifications over Server-Sent Events (SSE)
+- An Arduino-based bench monitor for rear/front LEDs, crash touch input, and battery voltage
+- Real-time browser notifications over Server-Sent Events (SSE), including a unified system restored event
 
 This is not a full ASAM SOVD implementation. It is intended for learning, demos, and experimentation.
 
@@ -22,7 +22,7 @@ project/
 ├── doip_ecu.py                       # DoIP ECU simulator on port 13400
 ├── doip_client.py                    # DoIP client helper used by the REST UDS endpoint
 ├── index.html                        # Main dashboard served by server.py
-├── arduino_code.cpp                  # Arduino LED detector sketch
+├── arduino_code.cpp                  # Arduino bench monitor sketch
 ├── data/
 │   ├── diagnostic_trace.py           # In-memory diagnostics trace buffer
 │   ├── simulated_data.py             # Vehicle, power, ECU, sensor, and fault demo data
@@ -63,19 +63,30 @@ For UDS requests, `server.py` uses `doip_client.py` to send a DoIP diagnostic me
 127.0.0.1:13400
 ```
 
-The LED detector is also integrated into `server.py`. It listens to Arduino serial messages such as:
+The Arduino bench monitor is integrated into `server.py`. It listens to serial messages such as:
 
 ```text
 LED_REAR:FAULT
 LED_REAR:OK
+LED_FRONT:FAULT
+LED_FRONT:OK
+CRASH:FAULT:<duration_ms>
+BATTERY:VOLTAGE:<voltage>
+BATTERY:UNDERVOLTAGE:<voltage>
+BATTERY:OVERVOLTAGE:<voltage>
+BATTERY:OK:<voltage>
 ```
 
-and publishes browser notifications through `/events` as:
+and publishes browser notifications through `/events` as raw SSE messages, for example:
 
 ```text
-data: FAULT
-data: OK
+data: LED_REAR:FAULT
+data: BATTERY:UNDERVOLTAGE:10.8
+data: CRASH:FAULT:66
+data: SYSTEM:OK
 ```
+
+`SYSTEM:OK` is emitted only when every active bench fault has cleared: LEDs connected, crash input restored, and battery voltage back in the normal range.
 
 ---
 
@@ -91,7 +102,7 @@ python3 doip_ecu.py
 
 This starts the simulated DoIP ECU on TCP port `13400`.
 
-`doip_ecu.py` only handles DoIP/UDS traffic. The main `server.py` process owns the LED detector to avoid two processes competing for the same serial device.
+`doip_ecu.py` only handles DoIP/UDS traffic. The main `server.py` process owns the Arduino bench monitor to avoid two processes competing for the same serial device.
 
 ### 2. Start The Main Dashboard Server
 
@@ -198,15 +209,29 @@ If the phone hotspot changes its network range in the future, update the static 
 
 ---
 
-## Arduino LED Detector
+## Arduino Bench Monitor
 
 Upload `arduino_code.cpp` to the Arduino.
 
-The sketch monitors analog pin `A0` and writes one of these messages over serial at `9600` baud:
+The sketch monitors:
+
+- `A0`: rear LED connection state
+- `A2`: front LED connection state
+- `D2`: crash/touch input
+- `A1`: battery voltage potentiometer
+
+It writes messages over serial at `9600` baud:
 
 ```text
 LED_REAR:FAULT
 LED_REAR:OK
+LED_FRONT:FAULT
+LED_FRONT:OK
+CRASH:FAULT:<duration_ms>
+BATTERY:VOLTAGE:<voltage>
+BATTERY:UNDERVOLTAGE:<voltage>
+BATTERY:OVERVOLTAGE:<voltage>
+BATTERY:OK:<voltage>
 ```
 
 `server.py` scans these serial ports:
@@ -218,15 +243,23 @@ LED_REAR:OK
 /dev/ttyUSB1
 ```
 
-When the LED is disconnected, the dashboard should show a fault popup. When the LED is restored, it should show a recovery popup.
+When a LED is disconnected, the dashboard shows a fault popup. When battery voltage leaves the normal range, the dashboard shows an under/over voltage popup and changes `Power Mode`. A crash touch event also shows a popup.
 
-Each LED state change also sends a UDS `WriteDataByIdentifier` request through DoIP:
+The normal battery range is:
+
+```text
+11.0 V <= voltage <= 14.5 V
+```
+
+Below `11.0 V` is `UNDERVOLTAGE`. Above `14.5 V` is `OVERVOLTAGE`. Returning to the normal range changes `Power Mode` back to `NORMAL`; if no other bench fault is active, the dashboard shows `System Restored`.
+
+Each bench state change also sends a UDS `WriteDataByIdentifier` request through DoIP:
 
 ```text
 2E F1 A1 4C 45 44 5F 52 45 41 52 3A ...
 ```
 
-The demo DID `F1A1` stores the latest LED state as ASCII, for example `LED_REAR:FAULT` or `LED_REAR:OK`. The simulated ECU replies with `6E F1 A1`.
+The demo DIDs store the latest bench states as ASCII. For example, DID `F1A1` stores `LED_REAR:FAULT` or `LED_REAR:OK`, DID `F1A3` stores crash state, and DID `F1A4` stores battery state. The simulated ECU replies with positive WriteDataByIdentifier responses such as `6E F1 A1`.
 
 ### Test Without Arduino
 
@@ -289,6 +322,9 @@ Supported DIDs:
 | `F40D` | Engine Load |
 | `F40E` | Coolant Temperature |
 | `F1A1` | Latest rear-left LED state |
+| `F1A2` | Latest front LED state |
+| `F1A3` | Latest crash state |
+| `F1A4` | Latest battery state |
 
 ### Real-Time Events
 
@@ -299,9 +335,15 @@ GET /events
 This endpoint uses Server-Sent Events and emits:
 
 ```text
-data: FAULT
-data: OK
+data: LED_REAR:FAULT
+data: LED_FRONT:FAULT
+data: BATTERY:UNDERVOLTAGE:10.8
+data: BATTERY:OVERVOLTAGE:14.8
+data: CRASH:FAULT:66
+data: SYSTEM:OK
 ```
+
+When a browser refreshes, `/events` immediately replays any active physical bench faults so the page does not show a restored system while a LED is disconnected or the battery voltage is still out of range.
 
 ### Diagnostics Trace
 
@@ -311,7 +353,9 @@ GET /diagnostics/trace
 
 Returns the latest entries from an in-memory `deque(maxlen=100)`.
 
-Browser-initiated diagnostic actions are scoped per browser client, so one user's ReadDID trace is not shown to another user. Global vehicle events, such as real LED connect/disconnect changes, are visible to every connected browser.
+The dashboard's `Clean Console` button clears the visible diagnostic console for the current browser by storing a local trace cursor. It does not delete the shared in-memory trace for other connected browsers.
+
+Browser-initiated diagnostic actions are scoped per browser client, so one user's ReadDID trace is not shown to another user. Global vehicle events, such as real LED connect/disconnect, crash, and battery voltage changes, are visible to every connected browser.
 
 Browser-controlled simulation state is also scoped per browser client. For example, if one user turns ignition OFF from a phone, another user on a computer keeps their own ignition state and diagnostic flow. Physical LED connect/disconnect events remain shared because they represent the real vehicle/bench state.
 
