@@ -65,7 +65,7 @@ header p {
     max-width: 1100px;
     margin: 18px auto 0 auto;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
 }
 
@@ -501,10 +501,6 @@ footer {
                 <span class="status-title">Protocol</span>
                 <span class="status-value">UDS over DoIP</span>
             </div>
-            <div class="status-tile">
-                <span class="status-title">LED Monitor</span>
-                <span class="status-value"><span id="led_dot" class="dot"></span><span id="led_status">CONNECTING</span></span>
-            </div>
         </div>
     </div>
 </header>
@@ -569,6 +565,7 @@ footer {
         <div class="control-panel">
             <button class="btn-success" onclick="ignitionOn()">⚡ Ignition ON</button>
             <button class="btn-danger" onclick="ignitionOff()">🛑 Ignition OFF</button>
+            <button class="btn-secondary" onclick="clearDiagnosticConsole()">Clean Console</button>
         </div>
     </div>
 
@@ -582,10 +579,19 @@ footer {
 const BASE_URL = window.location.origin;
 const diagnosticTrace = document.getElementById("diagnostic_trace");
 const popup = document.getElementById("popup");
-const ledDot = document.getElementById("led_dot");
-const ledStatus = document.getElementById("led_status");
 const CLIENT_ID_KEY = "sovd_client_id";
+const BATTERY_UNDERVOLTAGE_THRESHOLD = 11.0;
+const BATTERY_OVERVOLTAGE_THRESHOLD = 14.5;
 let clientId = localStorage.getItem(CLIENT_ID_KEY);
+let batteryFaultState = null;
+const FAULT_BACKGROUND = "linear-gradient(135deg, #3b0000, #1c1c1c)";
+const OK_BACKGROUND = "linear-gradient(135deg, #1c1c1c, #2c3e50)";
+const activeFaults = new Set();
+let faultBackgroundActive = false;
+let crashRestoreTimer = null;
+const TRACE_CLEAR_KEY = "sovd_trace_clear_after";
+let traceClearAfterId = Number(localStorage.getItem(TRACE_CLEAR_KEY) || 0);
+let latestSeenTraceId = traceClearAfterId;
 
 if (!clientId) {
     const canUseRandomUUID = window.crypto && typeof window.crypto.randomUUID === "function";
@@ -610,15 +616,87 @@ function updateIgnitionVisual(state) {
     }
 }
 
-function updateLedVisual(state) {
-    ledStatus.innerText = state;
-    if (state === "FAULT") {
-        ledDot.className = "dot active-red";
-    } else if (state === "OK") {
-        ledDot.className = "dot active-green";
-    } else {
-        ledDot.className = "dot";
+function batteryStatusFromVoltage(voltage, previousStatus) {
+    if (Number.isNaN(voltage)) {
+        return previousStatus || null;
     }
+
+    if (voltage < BATTERY_UNDERVOLTAGE_THRESHOLD) {
+        return "UNDERVOLTAGE";
+    }
+
+    if (voltage > BATTERY_OVERVOLTAGE_THRESHOLD) {
+        return "OVERVOLTAGE";
+    }
+
+    return null;
+}
+
+function setFaultActive(faultId) {
+    activeFaults.add(faultId);
+    faultBackgroundActive = true;
+    document.body.style.background = FAULT_BACKGROUND;
+}
+
+function setFaultRestored(faultId, notify = true) {
+    const hadFault = activeFaults.delete(faultId);
+
+    if (activeFaults.size === 0) {
+        faultBackgroundActive = false;
+        document.body.style.background = OK_BACKGROUND;
+
+        if (notify && hadFault) {
+            showPopup("✅ System Restored", "ok");
+        }
+    }
+}
+
+function forceSystemRestored(notify = true) {
+    const hadFault = activeFaults.size > 0 || faultBackgroundActive;
+    activeFaults.clear();
+    batteryFaultState = null;
+    faultBackgroundActive = false;
+    document.body.style.background = OK_BACKGROUND;
+
+    if (notify && hadFault) {
+        showPopup("✅ System Restored", "ok");
+    }
+}
+
+function applyBatteryState(voltageText, eventType = "VOLTAGE", notify = false) {
+    const voltage = Number.parseFloat(voltageText);
+    const previousStatus = batteryFaultState;
+
+    battery_voltage.innerText = Number.isNaN(voltage) ? "— V" : voltage.toFixed(1) + " V";
+
+    if (eventType === "UNDERVOLTAGE" || eventType === "OVERVOLTAGE") {
+        batteryFaultState = eventType;
+    } else {
+        batteryFaultState = batteryStatusFromVoltage(voltage, previousStatus);
+    }
+
+    if (batteryFaultState === "UNDERVOLTAGE") {
+        power_mode.innerText = "UNDERVOLTAGE";
+        setFaultActive("battery");
+
+        if (notify && previousStatus !== batteryFaultState) {
+            showPopup("⚠️ Battery undervoltage detected", "fault");
+        }
+        return;
+    }
+
+    if (batteryFaultState === "OVERVOLTAGE") {
+        power_mode.innerText = "OVERVOLTAGE";
+        setFaultActive("battery");
+
+        if (notify && previousStatus !== batteryFaultState) {
+            showPopup("⚠️ Battery overvoltage detected", "fault");
+        }
+        return;
+    }
+
+    power_mode.innerText = "NORMAL";
+    setFaultRestored("battery", notify);
 }
 
 // TU FUNCIÓN POPUP ORIGINAL (Duración de 3 segundos tal cual)
@@ -644,9 +722,8 @@ function refreshAll() {
     }).catch(err => console.error("Error:", err));
 
     clientFetch(`${BASE_URL}/vehicle/power`).then(r=>r.json()).then(d=>{
-        battery_voltage.innerText = (d.battery_voltage !== undefined) ? d.battery_voltage + " V" : "— V";
+        applyBatteryState(d.battery_voltage, d.power_mode || "VOLTAGE", false);
         battery_current.innerText = (d.battery_current !== undefined) ? d.battery_current + " A" : "— A";
-        power_mode.innerText = d.power_mode || '—';
     }).catch(err => console.error("Error:", err));
 }
 
@@ -657,13 +734,32 @@ function formatTraceTime(timestamp) {
 }
 
 function renderDiagnosticTrace(items) {
-    if (!items || items.length === 0) {
+    if (items && items.length > 0) {
+        latestSeenTraceId = Math.max(
+            latestSeenTraceId,
+            ...items.map(item => Number(item.id) || 0)
+        );
+    }
+
+    const visibleItems = (items || []).filter(item => {
+        return (Number(item.id) || 0) > traceClearAfterId;
+    });
+
+    if (visibleItems.length === 0) {
+        diagnosticTrace.innerHTML = `
+            <div class="trace-row">
+                <span class="trace-time">--:--:--</span>
+                <span class="trace-source">TRACE</span>
+                <span class="trace-direction">IDLE</span>
+                <span class="trace-message">Waiting for diagnostic activity...</span>
+            </div>
+        `;
         return;
     }
 
     diagnosticTrace.innerHTML = "";
 
-    items.forEach(item => {
+    visibleItems.forEach(item => {
         const row = document.createElement("div");
         row.className = `trace-row ${item.level || "info"}`;
 
@@ -707,6 +803,12 @@ function refreshDiagnosticTrace() {
         .catch(err => console.error("Trace error:", err));
 }
 
+function clearDiagnosticConsole() {
+    traceClearAfterId = latestSeenTraceId;
+    localStorage.setItem(TRACE_CLEAR_KEY, String(traceClearAfterId));
+    renderDiagnosticTrace([]);
+}
+
 function ignitionOn(){ 
     clientFetch(`${BASE_URL}/ignition/on`).then(refreshAll); 
 }
@@ -735,33 +837,8 @@ function handleLedEvent(rawData) {
         const eventType = parts.length >= 2 ? parts[1] : "UNKNOWN";
         const voltage = parts.length >= 3 ? parts[2] : "—";
 
-        battery_voltage.innerText = voltage + " V";
-
-        if (eventType === "UNDERVOLTAGE") {
-            console.log("🔋 BATTERY UNDERVOLTAGE:", voltage, "V");
-
-            document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
-            showPopup("⚠️ Battery undervoltage detected", "fault");
-            return;
-        }
-
-        if (eventType === "OVERVOLTAGE") {
-            console.log("🔋 BATTERY OVERVOLTAGE:", voltage, "V");
-
-            document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
-            showPopup("⚠️ Battery overvoltage detected", "fault");
-            return;
-        }
-
-        if (eventType === "OK") {
-            console.log("🔋 BATTERY OK:", voltage, "V");
-
-            document.body.style.background = "linear-gradient(135deg, #1c1c1c, #2c3e50)";
-            showPopup("✅ Battery voltage restored", "ok");
-            return;
-        }
-
-        // BATTERY:VOLTAGE solo actualiza el valor. No popup.
+        console.log("🔋 BATTERY", eventType, voltage, "V");
+        applyBatteryState(voltage, eventType, true);
         return;
     }
 
@@ -771,8 +848,17 @@ function handleLedEvent(rawData) {
 
         console.log("💥 CRASH DETECTED:", durationMs, "ms");
 
-        document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
+        setFaultActive("crash");
         showPopup("💥 Crash detected", "fault");
+
+        if (crashRestoreTimer) {
+            clearTimeout(crashRestoreTimer);
+        }
+
+        crashRestoreTimer = setTimeout(() => {
+            crashRestoreTimer = null;
+            setFaultRestored("crash", true);
+        }, 2200);
 
         return;
     }
@@ -780,9 +866,7 @@ function handleLedEvent(rawData) {
     if (rawData === "SYSTEM:OK" || rawData === "OK") {
         console.log("✅ SYSTEM OK");
 
-        document.body.style.background = "linear-gradient(135deg, #1c1c1c, #2c3e50)";
-        showPopup("✅ System Restored", "ok");
-        updateLedVisual("OK");
+        forceSystemRestored(true);
         return;
     }
 
@@ -806,9 +890,8 @@ function handleLedEvent(rawData) {
     if (state === "FAULT") {
         console.log("🚨 FAULT DETECTADO:", ledName);
 
-        document.body.style.background = "linear-gradient(135deg, #3b0000, #1c1c1c)";
+        setFaultActive(ledName);
         showPopup(`⚠️ ${displayName} Disconnected`, "fault");
-        updateLedVisual("FAULT");
         return;
     }
 
@@ -816,6 +899,7 @@ function handleLedEvent(rawData) {
         // No mostramos popup individual.
         // El popup OK solo aparece cuando server.py envía SYSTEM:OK.
         console.log("LED restored:", ledName);
+        setFaultRestored(ledName, true);
         return;
     }
 }
@@ -836,13 +920,9 @@ if (window.EventSource) {
 
     eventSource.onerror = function(error) {
         console.error("❌ Error SSE:", error);
-        if (ledStatus.innerText === "CONNECTING" || ledStatus.innerText === "UNKNOWN") {
-            updateLedVisual("OFFLINE");
-        }
     };
 } else {
     console.error("EventSource no está soportado por este navegador");
-    updateLedVisual("OFFLINE");
 }
     
 refreshAll();

@@ -8,7 +8,7 @@ const int LED_FRONT_REMOVED_THRESHOLD = 850;
 
 // Impact sensor timing
 const unsigned long MIN_TOUCH_TIME = 40;
-const unsigned long MAX_TOUCH_TIME = 200;
+const unsigned long MAX_TOUCH_TIME = 100;
 const unsigned long IMPACT_COOLDOWN_MS = 1000;
 
 bool rearFaultActive = false;
@@ -26,12 +26,6 @@ const float BATTERY_MAX_VOLTAGE = 16.0;
 
 const float BATTERY_UNDERVOLTAGE_THRESHOLD = 11.0;
 const float BATTERY_OVERVOLTAGE_THRESHOLD = 14.5;
-
-const float BATTERY_UNDERVOLTAGE_ENTER = 11.0;
-const float BATTERY_UNDERVOLTAGE_EXIT  = 11.3;
-
-const float BATTERY_OVERVOLTAGE_ENTER = 14.6;
-const float BATTERY_OVERVOLTAGE_EXIT  = 14.3;
 
 const unsigned long BATTERY_SEND_INTERVAL_MS = 250;
 const float BATTERY_SEND_DELTA = 0.1;
@@ -117,25 +111,11 @@ float readBatteryVoltage() {
 }
 
 String getBatteryStatus(float voltage) {
-  if (lastBatteryStatus == "UNDERVOLTAGE") {
-    if (voltage > BATTERY_UNDERVOLTAGE_EXIT) {
-      return "OK";
-    }
+  if (voltage < BATTERY_UNDERVOLTAGE_THRESHOLD) {
     return "UNDERVOLTAGE";
   }
 
-  if (lastBatteryStatus == "OVERVOLTAGE") {
-    if (voltage < BATTERY_OVERVOLTAGE_EXIT) {
-      return "OK";
-    }
-    return "OVERVOLTAGE";
-  }
-
-  if (voltage < BATTERY_UNDERVOLTAGE_ENTER) {
-    return "UNDERVOLTAGE";
-  }
-
-  if (voltage > BATTERY_OVERVOLTAGE_ENTER) {
+  if (voltage > BATTERY_OVERVOLTAGE_THRESHOLD) {
     return "OVERVOLTAGE";
   }
 

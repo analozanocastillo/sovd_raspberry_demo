@@ -39,22 +39,83 @@ led_fault_states = {
     "LED_REAR": False,
     "LED_FRONT": False,
 }
+battery_fault_status = None
+crash_fault_active = False
+crash_restore_timer = None
 # Shared in-memory ring buffer: deque(maxlen=100)
 diagnostic_events = _diagnostic_events
 
 CRASH_STATE_DID = "F1A3"
 
 BATTERY_STATE_DID = "F1A4"
+BATTERY_UNDERVOLTAGE_THRESHOLD = 11.0
+BATTERY_OVERVOLTAGE_THRESHOLD = 14.5
 
 def get_client_id():
     return request.headers.get("X-SOVD-Client") or request.args.get("client_id")
 
 
-def get_led_state_name():
-    with state_lock:
-        fault_active = vehicle_state.get("rear_left_light", {}).get("fault_active", False)
+def sync_battery_fault_from_voltage_locked(previous_status=None):
+    global battery_fault_status
 
-    return "FAULT" if fault_active else "OK"
+    try:
+        voltage = float(DATA["power"].get("battery_voltage"))
+    except (TypeError, ValueError):
+        return battery_fault_status
+
+    if previous_status is None:
+        previous_status = battery_fault_status
+
+    battery_fault_status = battery_status_from_voltage(voltage, previous_status)
+
+    if battery_fault_status == "UNDERVOLTAGE":
+        DATA["power"]["power_mode"] = "UNDERVOLTAGE"
+    elif battery_fault_status == "OVERVOLTAGE":
+        DATA["power"]["power_mode"] = "OVERVOLTAGE"
+    else:
+        DATA["power"]["power_mode"] = "NORMAL"
+
+    return battery_fault_status
+
+
+def system_has_active_fault_locked():
+    sync_battery_fault_from_voltage_locked()
+
+    return (
+        any(led_fault_states.values()) or
+        battery_fault_status is not None or
+        crash_fault_active
+    )
+
+
+def battery_status_from_voltage(voltage, previous_status):
+    if voltage < BATTERY_UNDERVOLTAGE_THRESHOLD:
+        return "UNDERVOLTAGE"
+
+    if voltage > BATTERY_OVERVOLTAGE_THRESHOLD:
+        return "OVERVOLTAGE"
+
+    return None
+
+
+def get_active_fault_events():
+    with state_lock:
+        sync_battery_fault_from_voltage_locked()
+
+        events = [
+            f"{led_name}:FAULT"
+            for led_name, fault_active in led_fault_states.items()
+            if fault_active
+        ]
+
+        if battery_fault_status is not None:
+            voltage = DATA["power"].get("battery_voltage", "—")
+            events.append(f"BATTERY:{battery_fault_status}:{voltage}")
+
+        if crash_fault_active:
+            events.append("CRASH:FAULT")
+
+    return events
 
 
 def publish_led_event(state):
@@ -64,6 +125,11 @@ def publish_led_event(state):
         led_event_seq += 1
         led_events.append((led_event_seq, state))
         led_event_condition.notify_all()
+
+
+def publish_system_restored_if_needed(was_system_fault, is_system_fault):
+    if was_system_fault and not is_system_fault:
+        publish_led_event("SYSTEM:OK")
 
 
 def send_led_state_by_uds(led_name, state):
@@ -122,15 +188,17 @@ def handle_led_serial_message(led_name, state):
         return
 
     changed = False
-    all_ok_after_update = False
+    was_system_fault = False
+    is_system_fault = False
 
     with state_lock:
+        was_system_fault = system_has_active_fault_locked()
         previous_fault = led_fault_states.get(led_name, False)
         new_fault = state == "FAULT"
 
         changed = previous_fault != new_fault
         led_fault_states[led_name] = new_fault
-        all_ok_after_update = not any(led_fault_states.values())
+        is_system_fault = system_has_active_fault_locked()
 
         # Mantener compatibilidad con la lógica vieja del rear LED
         if led_name == "LED_REAR":
@@ -150,8 +218,8 @@ def handle_led_serial_message(led_name, state):
     if changed:
         if state == "FAULT":
             publish_led_event(f"{led_name}:FAULT")
-        elif state == "OK" and all_ok_after_update:
-            publish_led_event("SYSTEM:OK")
+        else:
+            publish_system_restored_if_needed(was_system_fault, is_system_fault)
 
     send_led_state_by_uds(led_name, state)
 
@@ -200,7 +268,55 @@ def send_crash_event_by_uds(duration_ms):
         )
         print(f"[SOVD][UDS] Could not send crash event {payload_text}: {e}", flush=True)
 
+
+def send_crash_restored_by_uds():
+    payload_text = "CRASH:OK"
+    payload = payload_text.encode("ascii").hex().upper()
+    uds_request = f"2E{CRASH_STATE_DID}{payload}"
+
+    add_trace(
+        "CRASH",
+        "event",
+        "Crash input restored",
+        payload_text,
+        "success",
+        global_event=True,
+    )
+    add_trace(
+        "UDS",
+        "tx",
+        f"WriteDataByIdentifier DID 0x{CRASH_STATE_DID}",
+        uds_request,
+        "tx",
+        global_event=True,
+    )
+
+    try:
+        result = send_uds_sequence([uds_request], delay_s=0.0, recv_timeout_s=1.0)[-1]
+        _, reply = result
+        add_trace(
+            "DoIP",
+            "rx" if reply else "error",
+            f"Crash restore write {'acknowledged' if reply else 'timed out'}",
+            reply,
+            "rx" if reply else "error",
+            global_event=True,
+        )
+        print(f"[SOVD][UDS] {payload_text} sent: {result}", flush=True)
+    except Exception as e:
+        add_trace(
+            "DoIP",
+            "error",
+            f"Could not send crash restore {payload_text}",
+            str(e),
+            "error",
+            global_event=True,
+        )
+        print(f"[SOVD][UDS] Could not send crash restore {payload_text}: {e}", flush=True)
+
 def handle_crash_serial_message(line):
+    global crash_fault_active, crash_restore_timer
+
     parts = line.split(":")
     duration_ms = "unknown"
 
@@ -209,8 +325,31 @@ def handle_crash_serial_message(line):
 
     print(f"[SOVD][SERIAL] CRASH detected, duration={duration_ms} ms", flush=True)
 
+    with state_lock:
+        crash_fault_active = True
+
+        if crash_restore_timer is not None:
+            crash_restore_timer.cancel()
+
+        crash_restore_timer = threading.Timer(2.0, clear_crash_fault)
+        crash_restore_timer.daemon = True
+        crash_restore_timer.start()
+
     publish_led_event(f"CRASH:FAULT:{duration_ms}")
     send_crash_event_by_uds(duration_ms)
+
+
+def clear_crash_fault():
+    global crash_fault_active, crash_restore_timer
+
+    with state_lock:
+        was_system_fault = system_has_active_fault_locked()
+        crash_fault_active = False
+        crash_restore_timer = None
+        is_system_fault = system_has_active_fault_locked()
+
+    publish_system_restored_if_needed(was_system_fault, is_system_fault)
+    send_crash_restored_by_uds()
 
 def send_battery_event_by_uds(status, voltage):
     payload_text = f"BATTERY:{status}:{voltage}"
@@ -267,6 +406,8 @@ def send_battery_event_by_uds(status, voltage):
         print(f"[SOVD][UDS] Could not send battery event {payload_text}: {e}", flush=True)
 
 def handle_battery_serial_message(line):
+    global battery_fault_status
+
     parts = line.split(":")
 
     if len(parts) < 3:
@@ -276,60 +417,49 @@ def handle_battery_serial_message(line):
     event_type = parts[1].strip()
     voltage = parts[2].strip()
 
+    was_system_fault = False
+    is_system_fault = False
+    status_changed = False
+
     try:
         voltage_value = float(voltage)
 
         with state_lock:
+            was_system_fault = system_has_active_fault_locked()
+            previous_status = battery_fault_status
             DATA["power"]["battery_voltage"] = voltage_value
 
-            if event_type == "UNDERVOLTAGE":
-                DATA["power"]["power_mode"] = "UNDERVOLTAGE"
-            elif event_type == "OVERVOLTAGE":
-                DATA["power"]["power_mode"] = "OVERVOLTAGE"
-            elif event_type == "OK":
-                DATA["power"]["power_mode"] = "NORMAL"
+            if event_type in ("UNDERVOLTAGE", "OVERVOLTAGE"):
+                battery_fault_status = event_type
+            else:
+                sync_battery_fault_from_voltage_locked(previous_status)
+
+            status_changed = previous_status != battery_fault_status
+            is_system_fault = system_has_active_fault_locked()
 
     except Exception as e:
         print(f"[SOVD][BATTERY] Could not update simulated battery voltage: {e}", flush=True)
 
     print(f"[SOVD][SERIAL] BATTERY {event_type} {voltage} V", flush=True)
 
-    publish_led_event(f"BATTERY:{event_type}:{voltage}")
+    if status_changed and battery_fault_status is not None:
+        publish_led_event(f"BATTERY:{battery_fault_status}:{voltage}")
+    else:
+        publish_led_event(f"BATTERY:{event_type}:{voltage}")
 
     if event_type in ("UNDERVOLTAGE", "OVERVOLTAGE", "OK"):
-        send_battery_event_by_uds(event_type, voltage)
+        send_battery_event_by_uds(battery_fault_status or "OK", voltage)
+
+    if battery_fault_status is None and status_changed:
+        publish_system_restored_if_needed(was_system_fault, is_system_fault)
 
 
 def set_fault_active():
-    changed = False
-
-    with state_lock:
-        changed = not vehicle_state["rear_left_light"]["fault_active"]
-        vehicle_state["rear_left_light"]["fault_active"] = True
-        vehicle_state["rear_left_light"]["fault_code"] = "B1234"
-        vehicle_state["rear_left_light"]["fault_name"] = "Rear left LED failure"
-        vehicle_state["rear_left_light"]["severity"] = "warning"
-
-    print("[SOVD][SERIAL] Fallo activo:", vehicle_state["rear_left_light"], flush=True)
-    if changed:
-        publish_led_event("FAULT")
-    send_led_state_by_uds("FAULT")
+    handle_led_serial_message("LED_REAR", "FAULT")
 
 
 def clear_fault():
-    changed = False
-
-    with state_lock:
-        changed = vehicle_state["rear_left_light"]["fault_active"]
-        vehicle_state["rear_left_light"]["fault_active"] = False
-        vehicle_state["rear_left_light"]["fault_code"] = None
-        vehicle_state["rear_left_light"]["fault_name"] = None
-        vehicle_state["rear_left_light"]["severity"] = None
-
-    print("[SOVD][SERIAL] Fallo eliminado:", vehicle_state["rear_left_light"], flush=True)
-    if changed:
-        publish_led_event("OK")
-    send_led_state_by_uds("OK")
+    handle_led_serial_message("LED_REAR", "OK")
 
 
 def find_serial_port():
@@ -440,6 +570,11 @@ def handle_get(path):
 
     # ===== API (GET endpoints) =====
     client_id = get_client_id()
+
+    if full_path == "/vehicle/power":
+        with state_lock:
+            sync_battery_fault_from_voltage_locked()
+
     api = handle_api(full_path, client_id=client_id)
     if api is not None:
         status, payload = api
@@ -481,8 +616,10 @@ def events():
         with led_event_condition:
             last_event_id = led_event_seq
 
-        # Estado inicial para que el navegador pinte el indicador al conectar.
-        yield f"data: {get_led_state_name()}\n\n"
+        # Al reconectar, repetir solo los fallos activos para que el navegador
+        # no pierda el estado real del banco tras refrescar la página.
+        for state in get_active_fault_events():
+            yield f"data: {state}\n\n"
 
         while True:
             with led_event_condition:
