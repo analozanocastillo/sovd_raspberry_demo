@@ -58,5 +58,16 @@ DATA = {
             {"code": "P0300", "description": "Random misfire detected"}
         ],
 
+    },
+
+    "vehicle_state": {
+        "rear_left_light": {
+            "fault_active": False,
+            "fault_code": None,
+            "fault_name": None,
+            "severity": None
+        }
     }
 }
+
+vehicle_state = DATA["vehicle_state"]

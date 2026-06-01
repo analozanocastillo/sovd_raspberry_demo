@@ -25,8 +25,7 @@ project/
 ├── arduino_code.cpp                  # Arduino bench monitor sketch
 ├── data/
 │   ├── diagnostic_trace.py           # In-memory diagnostics trace buffer
-│   ├── simulated_data.py             # Vehicle, power, ECU, sensor, and fault demo data
-│   └── vehicle_state.py              # Shared rear-left light fault state
+│   └── simulated_data.py             # Vehicle, power, ECU, sensor, and shared fault state
 ├── routes/
 │   ├── api_routes.py                 # REST and UDS route logic
 │   └── ui_routes.py                  # UI route mapping
@@ -130,6 +129,28 @@ On a Raspberry Pi or another device on the same network, replace `localhost` wit
 http://<raspberry-pi-ip>:5000/
 ```
 
+To print the correct URL for the Wi-Fi/LAN that the Pi is currently using:
+
+```bash
+./scripts/show_dashboard_url.sh
+```
+
+If an ngrok HTTP tunnel is active, the same command also prints the public `https://...ngrok...` dashboard URL.
+
+If ngrok is already running for SSH and your account allows only one ngrok agent session, create the dashboard tunnel through the existing agent:
+
+```bash
+./scripts/ensure_ngrok_dashboard.sh
+```
+
+For example, if the Pi is connected to a normal router Wi-Fi and has address `192.168.1.57`, use:
+
+```text
+http://192.168.1.57:5000/
+```
+
+The fixed URL `http://172.20.10.2:5000/` only works on networks that actually assign or route `172.20.10.2` to the Pi. It cannot work automatically on every Wi-Fi network, because each Wi-Fi/router chooses its own IP range and client devices route traffic through that network.
+
 ### Presentation Wi-Fi Access Point
 
 For presentations, the Raspberry Pi can create its own local Wi-Fi network. Attendees connect to that Wi-Fi first, then open the dashboard through a stable local address:
@@ -205,7 +226,7 @@ With that fixed address, the dashboard QR can stay stable across Raspberry Pi re
 http://172.20.10.2:5000/
 ```
 
-If the phone hotspot changes its network range in the future, update the static connection settings and regenerate `sovd-dashboard-qr.png`.
+This URL is specific to the `SOVD-demo-Ana` hotspot configuration. If the Pi is connected to a different Wi-Fi, run `./scripts/show_dashboard_url.sh` and use the URL it prints instead. If the phone hotspot changes its network range in the future, update the static connection settings and regenerate `sovd-dashboard-qr.png`.
 
 ---
 

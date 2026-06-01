@@ -5,10 +5,9 @@ import time
 
 from routes.api_routes import handle_api, handle_post
 from routes.ui_routes import handle_ui
-from data.vehicle_state import vehicle_state
 from data.diagnostic_trace import add_trace, diagnostic_events as _diagnostic_events, get_trace
 from doip_client import send_uds_sequence
-from data.simulated_data import DATA
+from data.simulated_data import DATA, vehicle_state
 
 try:
     import serial

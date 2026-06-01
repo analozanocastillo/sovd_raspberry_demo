@@ -7,8 +7,7 @@ This repository is an educational SOVD/DoIP vehicle diagnostics demo intended fo
 - `server.py`: Main Flask app on port `5000`. Serves the dashboard, REST API endpoints, POST UDS endpoint, Arduino bench serial monitoring, test LED fault endpoints, and an SSE `/events` stream.
 - `routes/api_routes.py`: API routing logic for vehicle data, ignition/fault simulation, speed simulation, and `/uds/readDataByIdentifier`.
 - `routes/ui_routes.py`: Maps `/` and `/ui` to `index.html`.
-- `data/simulated_data.py`: In-memory vehicle, power, component, engine, sensor, and fault data.
-- `data/vehicle_state.py`: Shared in-memory state for the rear-left light fault.
+- `data/simulated_data.py`: In-memory vehicle, power, component, engine, sensor, and shared fault state data.
 - `data/diagnostic_trace.py`: Bounded `deque(maxlen=100)` trace shown in the dashboard. Browser requests are scoped with `X-SOVD-Client`; physical bench events are global so all clients see them.
 - `index.html`: Main browser dashboard for vehicle identity, power telemetry, ignition controls, UDS DID reads, terminal-style logs, a client-local `Clean Console` button, and SSE popup notifications.
 - `doip_client.py`: TCP DoIP client helper used by the REST UDS endpoint. Sends UDS payloads to `127.0.0.1:13400`.
