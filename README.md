@@ -1,5 +1,11 @@
 # SOVD Raspberry Demo
 
+Public dashboard:
+
+```text
+https://684ad3b98246.ngrok.app/
+```
+
 Educational proof-of-concept project that simulates a small **SOVD-like vehicle diagnostics server** on a Raspberry Pi style setup.
 
 The project combines:
