@@ -111,27 +111,12 @@ You should see output similar to:
 SOVD demo server running on http://0.0.0.0:5000
 ```
 
-### 3. Open The Dashboard Through Ngrok
+### 3. Open The Dashboard
 
-If ngrok is already running for SSH, create the web dashboard tunnel through the existing ngrok agent:
-
-```bash
-./scripts/ensure_ngrok_dashboard.sh
-```
-
-Then open the printed `https://...ngrok...` URL in the browser.
-
-To print the active ngrok dashboard URL at any time:
-
-```bash
-./scripts/show_dashboard_url.sh
-```
-
-Example output:
+Open the public dashboard URL:
 
 ```text
-Ngrok dashboard URLs:
-  https://684ad3b98246.ngrok.app/
+https://684ad3b98246.ngrok.app/
 ```
 
 Use ngrok for browser access.
@@ -195,8 +180,8 @@ The demo DIDs store the latest bench states as ASCII. For example, DID `F1A1` st
 You can simulate the LED state with:
 
 ```text
-https://<ngrok-dashboard-url>/test/fault
-https://<ngrok-dashboard-url>/test/ok
+https://684ad3b98246.ngrok.app/test/fault
+https://684ad3b98246.ngrok.app/test/ok
 ```
 
 ---
@@ -301,7 +286,7 @@ find . -maxdepth 3 -type f -name '*.py' -print0 | xargs -0 -n1 python3 -m py_com
 Quick endpoint checks:
 
 ```bash
-DASHBOARD_URL="https://<ngrok-dashboard-url>"
+DASHBOARD_URL="https://684ad3b98246.ngrok.app"
 curl "$DASHBOARD_URL/vehicle"
 curl "$DASHBOARD_URL/test/fault"
 curl "$DASHBOARD_URL/test/ok"
