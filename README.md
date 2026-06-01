@@ -40,11 +40,7 @@ project/
 
 The main user-facing app is `server.py`.
 
-It serves `index.html` at:
-
-```text
-http://localhost:5000/
-```
+It serves `index.html` on port `5000`; browser access is provided through ngrok.
 
 The dashboard calls REST endpoints on the same origin, for example:
 
@@ -125,7 +121,7 @@ If ngrok is already running for SSH, create the web dashboard tunnel through the
 
 Then open the printed `https://...ngrok...` URL in the browser.
 
-To print all available dashboard URLs at any time:
+To print the active ngrok dashboard URL at any time:
 
 ```bash
 ./scripts/show_dashboard_url.sh
@@ -134,108 +130,11 @@ To print all available dashboard URLs at any time:
 Example output:
 
 ```text
-Dashboard URLs for this network:
-  http://192.168.1.57:5000/
-
-Hostname URL if mDNS is available on the client:
-  http://sovd-pi.local:5000/
-
 Ngrok dashboard URLs:
   https://684ad3b98246.ngrok.app/
 ```
 
-Use the ngrok URL when you are connected remotely or when the browser is not on the same Wi-Fi as the Raspberry Pi.
-
-Local access still works on the Pi:
-
-```text
-http://localhost:5000/
-```
-
-Devices on the same Wi-Fi can also use the Pi's current LAN address:
-
-```text
-http://<raspberry-pi-ip>:5000/
-```
-
-The fixed URL `http://172.20.10.2:5000/` only works on the `SOVD-demo-Ana` hotspot setup. On other Wi-Fi networks, use ngrok or the URL printed by `./scripts/show_dashboard_url.sh`.
-
-### Presentation Wi-Fi Access Point
-
-For presentations, the Raspberry Pi can create its own local Wi-Fi network. Attendees connect to that Wi-Fi first, then open the dashboard through a stable local address:
-
-```text
-http://192.168.4.1:5000/
-```
-
-Default presentation credentials:
-
-```text
-Wi-Fi name: SOVD-Demo
-Password: SOVDdemo2026
-```
-
-The repository includes two QR codes:
-
-- `sovd-wifi-qr.png`: joins the `SOVD-Demo` Wi-Fi network.
-- `sovd-dashboard-qr.png`: opens `http://192.168.4.1:5000/`.
-
-To configure the Raspberry Pi access point with NetworkManager:
-
-```bash
-sudo ./scripts/setup_access_point.sh
-```
-
-If you are connected to the Raspberry Pi through Wi-Fi, this command may disconnect your current session because the Wi-Fi interface switches from client mode to access-point mode. Use Ethernet, a local keyboard/screen, or the existing tunnel when applying this configuration.
-
-After the access point is active:
-
-1. Start the DoIP ECU simulator:
-
-```bash
-python3 doip_ecu.py
-```
-
-2. Start the dashboard:
-
-```bash
-python3 server.py
-```
-
-3. Ask attendees to scan `sovd-wifi-qr.png`, stay connected even if the phone says the network has no internet, then scan `sovd-dashboard-qr.png`.
-
-The presentation Wi-Fi is a local network. If the Raspberry Pi does not have a second internet uplink, phones may show a warning such as "No Internet Connection". That is normal: the Wi-Fi still lets attendees reach the dashboard at `http://192.168.4.1:5000/`.
-
-To make the presentation Wi-Fi provide internet too, the Pi needs another uplink while `wlan0` is being used as the access point. Good options are:
-
-- Ethernet connected to a router.
-- USB tethering from a phone.
-- A second USB Wi-Fi adapter for the internet side.
-
-Using only the built-in `wlan0` for both the access point and another Wi-Fi network is not reliable for this demo.
-
-### Presentation Mobile Hotspot Mode
-
-The current presentation setup uses a mobile hotspot named:
-
-```text
-SOVD-demo-Ana
-```
-
-The Raspberry Pi NetworkManager connection is configured with this fixed IPv4 address:
-
-```text
-172.20.10.2/28
-Gateway: 172.20.10.1
-```
-
-With that fixed address, the dashboard QR can stay stable across Raspberry Pi reboots:
-
-```text
-http://172.20.10.2:5000/
-```
-
-This URL is specific to the `SOVD-demo-Ana` hotspot configuration. If the Pi is connected to a different Wi-Fi, run `./scripts/show_dashboard_url.sh` and use the URL it prints instead. If the phone hotspot changes its network range in the future, update the static connection settings and regenerate `sovd-dashboard-qr.png`.
+Use ngrok for browser access.
 
 ---
 
@@ -296,8 +195,8 @@ The demo DIDs store the latest bench states as ASCII. For example, DID `F1A1` st
 You can simulate the LED state with:
 
 ```text
-http://localhost:5000/test/fault
-http://localhost:5000/test/ok
+https://<ngrok-dashboard-url>/test/fault
+https://<ngrok-dashboard-url>/test/ok
 ```
 
 ---
@@ -402,15 +301,16 @@ find . -maxdepth 3 -type f -name '*.py' -print0 | xargs -0 -n1 python3 -m py_com
 Quick endpoint checks:
 
 ```bash
-curl http://localhost:5000/vehicle
-curl http://localhost:5000/test/fault
-curl http://localhost:5000/test/ok
+DASHBOARD_URL="https://<ngrok-dashboard-url>"
+curl "$DASHBOARD_URL/vehicle"
+curl "$DASHBOARD_URL/test/fault"
+curl "$DASHBOARD_URL/test/ok"
 ```
 
 Sample the SSE stream:
 
 ```bash
-curl --max-time 2 http://localhost:5000/events
+curl --max-time 2 "$DASHBOARD_URL/events"
 ```
 
 ---

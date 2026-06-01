@@ -25,7 +25,7 @@ python3 server.py
 Open:
 
 ```text
-http://localhost:5000/
+Use the ngrok URL printed by `scripts/ensure_ngrok_dashboard.sh`.
 ```
 
 DoIP ECU simulator:
@@ -37,20 +37,16 @@ python3 doip_ecu.py
 The main `server.py` app exposes LED simulation endpoints on port `5000`:
 
 ```text
-http://localhost:5000/test/fault
-http://localhost:5000/test/ok
+https://<ngrok-dashboard-url>/test/fault
+https://<ngrok-dashboard-url>/test/ok
 ```
 
-## Presentation Access Point
+## Presentation Access
 
-- For presentations, the Raspberry Pi can run its own Wi-Fi access point named `SOVD-Demo` with password `SOVDdemo2026`.
-- `scripts/setup_access_point.sh` configures this through NetworkManager and gives the Pi the stable AP address `192.168.4.1`.
-- `sovd-wifi-qr.png` joins the Wi-Fi network.
-- `sovd-dashboard-qr.png` opens `http://192.168.4.1:5000/`.
-- Warn before running the AP setup over Wi-Fi because switching `wlan0` into AP mode can disconnect the active session.
-- Current mobile-hotspot presentation mode uses SSID `SOVD-demo-Ana`.
-- The Raspberry Pi NetworkManager connection `SOVD-demo-Ana` has been set to manual IPv4 `172.20.10.2/28`, gateway `172.20.10.1`, DNS `172.20.10.1 8.8.8.8`.
-- In mobile-hotspot mode, `sovd-dashboard-qr.png` should point to `http://172.20.10.2:5000/`.
+- Use ngrok as the only browser access method.
+- `scripts/ensure_ngrok_dashboard.sh` creates or prints the HTTP ngrok tunnel for `server.py` on port `5000`.
+- `scripts/show_dashboard_url.sh` prints active ngrok dashboard URLs.
+- Do not add alternative browser connection flows.
 
 ## API Shape
 
@@ -128,7 +124,7 @@ Basic manual flow:
 
 1. Start `doip_ecu.py` so DoIP port `13400` is available if UDS DID reads need a live DoIP ECU.
 2. Start `server.py` for the main dashboard, vehicle API, and bench event stream on port `5000`.
-3. Open `http://localhost:5000/`.
+3. Run `scripts/ensure_ngrok_dashboard.sh` and open the printed ngrok URL.
 4. Use the DID dropdown and `Execute ReadDID`.
-5. Use `http://localhost:5000/test/fault` and `/test/ok` when testing rear LED notification behavior without Arduino hardware.
+5. Use `/test/fault` and `/test/ok` through the ngrok URL when testing rear LED notification behavior without Arduino hardware.
 6. Test battery restore by moving voltage outside the normal range, then back into `11.0 V` to `14.5 V`; the dashboard should return to `NORMAL` and show `System Restored` when no other bench fault is active.
