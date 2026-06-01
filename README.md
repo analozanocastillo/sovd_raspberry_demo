@@ -1,12 +1,6 @@
 # SOVD Raspberry Demo
 
-Public dashboard:
-
-```text
-https://684ad3b98246.ngrok.app/
-```
-
-Educational proof-of-concept project that simulates a small **SOVD-like vehicle diagnostics server** on a Raspberry Pi style setup.
+Project that simulates a small **SOVD-like vehicle diagnostics server** on a Raspberry Pi.
 
 The project combines:
 
@@ -15,8 +9,6 @@ The project combines:
 - UDS `ReadDataByIdentifier` requests through DoIP
 - An Arduino-based bench monitor for rear/front LEDs, crash touch input, and battery voltage
 - Real-time browser notifications over Server-Sent Events (SSE), including a unified system restored event
-
-This is not a full ASAM SOVD implementation. It is intended for learning, demos, and experimentation.
 
 ---
 
@@ -95,6 +87,8 @@ data: SYSTEM:OK
 
 ### 1. Start The DoIP ECU Simulator
 
+Run this if you want the dashboard's UDS DID reads to work:
+
 ```bash
 python3 doip_ecu.py
 ```
@@ -117,17 +111,27 @@ You should see output similar to:
 SOVD demo server running on http://0.0.0.0:5000
 ```
 
-### 3. Open The Dashboard
-
-Open the public dashboard URL:
+Open:
 
 ```text
-https://684ad3b98246.ngrok.app/
+http://localhost:5000/
 ```
 
-Use ngrok for browser access.
+On a Raspberry Pi or another device on the same network, replace `localhost` with the Raspberry Pi IP address:
 
----
+```text
+http://<raspberry-pi-ip>:5000/
+```
+
+
+For example, if the Pi is connected to a normal router Wi-Fi and has address `192.168.1.57`, use:
+
+```text
+http://192.168.1.57:5000/
+```
+
+The fixed URL `http://172.20.10.2:5000/` only works on networks that actually assign or route `172.20.10.2` to the Pi. It cannot work automatically on every Wi-Fi network, because each Wi-Fi/router chooses its own IP range and client devices route traffic through that network.
+
 
 ## Arduino Bench Monitor
 
@@ -186,8 +190,8 @@ The demo DIDs store the latest bench states as ASCII. For example, DID `F1A1` st
 You can simulate the LED state with:
 
 ```text
-https://684ad3b98246.ngrok.app/test/fault
-https://684ad3b98246.ngrok.app/test/ok
+http://localhost:5000/test/fault
+http://localhost:5000/test/ok
 ```
 
 ---
@@ -292,24 +296,16 @@ find . -maxdepth 3 -type f -name '*.py' -print0 | xargs -0 -n1 python3 -m py_com
 Quick endpoint checks:
 
 ```bash
-DASHBOARD_URL="https://684ad3b98246.ngrok.app"
-curl "$DASHBOARD_URL/vehicle"
-curl "$DASHBOARD_URL/test/fault"
-curl "$DASHBOARD_URL/test/ok"
+curl http://localhost:5000/vehicle
+curl http://localhost:5000/test/fault
+curl http://localhost:5000/test/ok
 ```
 
 Sample the SSE stream:
 
 ```bash
-curl --max-time 2 "$DASHBOARD_URL/events"
+curl --max-time 2 http://localhost:5000/events
 ```
 
 ---
 
-## Notes And Limitations
-
-- This project stores state in Python dictionaries; there is no database.
-- There is no authentication or transport security.
-- The Flask apps are development/demo servers.
-- Only one process should read the Arduino serial port. By convention, `server.py` owns it.
-- Older experimental entrypoints were removed so the active flow is easier to follow.
