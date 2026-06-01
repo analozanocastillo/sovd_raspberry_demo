@@ -132,6 +132,10 @@ http://192.168.1.57:5000/
 
 The fixed URL `http://172.20.10.2:5000/` only works on networks that actually assign or route `172.20.10.2` to the Pi. It cannot work automatically on every Wi-Fi network, because each Wi-Fi/router chooses its own IP range and client devices route traffic through that network.
 
+You could also a public URL:
+```text
+http://684ad3b98246.ngrok.app/
+```
 
 ## Arduino Bench Monitor
 
