@@ -93,8 +93,6 @@ data: SYSTEM:OK
 
 ### 1. Start The DoIP ECU Simulator
 
-Run this if you want the dashboard's UDS DID reads to work:
-
 ```bash
 python3 doip_ecu.py
 ```
@@ -117,39 +115,50 @@ You should see output similar to:
 SOVD demo server running on http://0.0.0.0:5000
 ```
 
-Open:
+### 3. Open The Dashboard Through Ngrok
 
-```text
-http://localhost:5000/
-```
-
-On a Raspberry Pi or another device on the same network, replace `localhost` with the Raspberry Pi IP address:
-
-```text
-http://<raspberry-pi-ip>:5000/
-```
-
-To print the correct URL for the Wi-Fi/LAN that the Pi is currently using:
-
-```bash
-./scripts/show_dashboard_url.sh
-```
-
-If an ngrok HTTP tunnel is active, the same command also prints the public `https://...ngrok...` dashboard URL.
-
-If ngrok is already running for SSH and your account allows only one ngrok agent session, create the dashboard tunnel through the existing agent:
+If ngrok is already running for SSH, create the web dashboard tunnel through the existing ngrok agent:
 
 ```bash
 ./scripts/ensure_ngrok_dashboard.sh
 ```
 
-For example, if the Pi is connected to a normal router Wi-Fi and has address `192.168.1.57`, use:
+Then open the printed `https://...ngrok...` URL in the browser.
 
-```text
-http://192.168.1.57:5000/
+To print all available dashboard URLs at any time:
+
+```bash
+./scripts/show_dashboard_url.sh
 ```
 
-The fixed URL `http://172.20.10.2:5000/` only works on networks that actually assign or route `172.20.10.2` to the Pi. It cannot work automatically on every Wi-Fi network, because each Wi-Fi/router chooses its own IP range and client devices route traffic through that network.
+Example output:
+
+```text
+Dashboard URLs for this network:
+  http://192.168.1.57:5000/
+
+Hostname URL if mDNS is available on the client:
+  http://sovd-pi.local:5000/
+
+Ngrok dashboard URLs:
+  https://684ad3b98246.ngrok.app/
+```
+
+Use the ngrok URL when you are connected remotely or when the browser is not on the same Wi-Fi as the Raspberry Pi.
+
+Local access still works on the Pi:
+
+```text
+http://localhost:5000/
+```
+
+Devices on the same Wi-Fi can also use the Pi's current LAN address:
+
+```text
+http://<raspberry-pi-ip>:5000/
+```
+
+The fixed URL `http://172.20.10.2:5000/` only works on the `SOVD-demo-Ana` hotspot setup. On other Wi-Fi networks, use ngrok or the URL printed by `./scripts/show_dashboard_url.sh`.
 
 ### Presentation Wi-Fi Access Point
 
