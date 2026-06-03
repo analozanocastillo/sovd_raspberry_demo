@@ -28,7 +28,6 @@ project/
 │   ├── api_routes.py                 # REST and UDS route logic
 │   └── ui_routes.py                  # UI route mapping
 ├── Dockerfile
-├── AGENTS.md                         # Project context for future Codex sessions
 └── README.md
 ```
 
@@ -105,19 +104,13 @@ In another terminal:
 python3 server.py
 ```
 
-You should see output similar to:
-
-```text
-SOVD demo server running on http://0.0.0.0:5000
-```
-
 Open:
 
 ```text
-http://localhost:5000/
+https://684ad3b98246.ngrok.app/
 ```
 
-### Keep The Dashboard Always Running
+### Keep The Demo Always Running
 
 For a supervised local run that restarts the Flask server if it exits:
 
@@ -125,38 +118,29 @@ For a supervised local run that restarts the Flask server if it exits:
 ./ops/run_forever.sh
 ```
 
-For a permanent boot-time service, install the included `systemd` unit:
+For permanent boot-time services, install the included `systemd` units:
 
 ```bash
 sudo cp ops/sovd-dashboard.service /etc/systemd/system/sovd-dashboard.service
+sudo cp ops/sovd-doip-ecu.service /etc/systemd/system/sovd-doip-ecu.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now sovd-dashboard.service
+sudo systemctl enable --now sovd-doip-ecu.service
+sudo systemctl status sovd-dashboard.service
+sudo systemctl status sovd-doip-ecu.service
 ```
 
 Logs are available through `systemd`:
 
 ```text
 journalctl -u sovd-dashboard.service
+journalctl -u sovd-doip-ecu.service
 ```
 
-On a Raspberry Pi or another device on the same network, replace `localhost` with the Raspberry Pi IP address:
+The documented browser access URL for the demo is:
 
 ```text
-http://<raspberry-pi-ip>:5000/
-```
-
-
-For example, if the Pi is connected to a normal router Wi-Fi and has address `192.168.1.57`, use:
-
-```text
-http://192.168.1.57:5000/
-```
-
-The fixed URL `http://172.20.10.2:5000/` only works on networks that actually assign or route `172.20.10.2` to the Pi. It cannot work automatically on every Wi-Fi network, because each Wi-Fi/router chooses its own IP range and client devices route traffic through that network.
-
-You could also a public URL:
-```text
-http://684ad3b98246.ngrok.app/
+https://684ad3b98246.ngrok.app/
 ```
 
 ## Arduino Bench Monitor
@@ -216,8 +200,8 @@ The demo DIDs store the latest bench states as ASCII. For example, DID `F1A1` st
 You can simulate the LED state with:
 
 ```text
-http://localhost:5000/test/fault
-http://localhost:5000/test/ok
+https://684ad3b98246.ngrok.app/test/fault
+https://684ad3b98246.ngrok.app/test/ok
 ```
 
 ---
@@ -322,15 +306,15 @@ find . -maxdepth 3 -type f -name '*.py' -print0 | xargs -0 -n1 python3 -m py_com
 Quick endpoint checks:
 
 ```bash
-curl http://localhost:5000/vehicle
-curl http://localhost:5000/test/fault
-curl http://localhost:5000/test/ok
+curl https://684ad3b98246.ngrok.app/vehicle
+curl https://684ad3b98246.ngrok.app/test/fault
+curl https://684ad3b98246.ngrok.app/test/ok
 ```
 
 Sample the SSE stream:
 
 ```bash
-curl --max-time 2 http://localhost:5000/events
+curl --max-time 2 https://684ad3b98246.ngrok.app/events
 ```
 
 ---
