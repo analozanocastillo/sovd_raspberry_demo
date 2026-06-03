@@ -1,0 +1,529 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{fancyhdr}
+
+\geometry{margin=2.4cm}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue
+}
+
+\definecolor{codebg}{RGB}{245,247,250}
+\definecolor{codeframe}{RGB}{210,216,224}
+
+\lstdefinestyle{projectcode}{
+    backgroundcolor=\color{codebg},
+    frame=single,
+    rulecolor=\color{codeframe},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    columns=fullflexible,
+    keepspaces=true,
+    showstringspaces=false
+}
+
+\lstset{style=projectcode}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{SOVD Raspberry Demo}
+\rhead{\thepage}
+
+\title{\textbf{Documentacion del Proyecto SOVD Raspberry Demo}}
+\author{sovd\_user}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Resumen}
+
+Este proyecto es una demo educativa de diagnostico vehicular inspirada en SOVD
+(\textit{Service-Oriented Vehicle Diagnostics}) y DoIP
+(\textit{Diagnostics over IP}). Esta pensado para ejecutarse en una Raspberry
+Pi y combina una aplicacion web Flask, una API REST, un simulador de ECU DoIP,
+peticiones UDS \textit{ReadDataByIdentifier}, una consola de trazas diagnosticas
+en navegador y una maqueta Arduino para eventos fisicos de LEDs, choque y bateria.
+
+La idea principal es simular un nodo de diagnostico vehicular: el usuario abre un
+dashboard web, consulta datos del vehiculo, ejecuta lecturas UDS contra una ECU
+simulada y recibe notificaciones en tiempo real cuando el banco fisico detecta
+fallos.
+
+\section{Objetivos del Proyecto}
+
+\begin{itemize}[leftmargin=*]
+    \item Servir un dashboard web de diagnostico en el puerto \texttt{5000}.
+    \item Exponer endpoints REST para estado del vehiculo, potencia, componentes y simulacion.
+    \item Comunicar el servidor principal con una ECU simulada mediante DoIP en el puerto \texttt{13400}.
+    \item Implementar lecturas UDS \texttt{ReadDataByIdentifier} para varios DIDs.
+    \item Integrar un Arduino como banco fisico para detectar fallos de LEDs, eventos de choque y voltaje de bateria.
+    \item Mostrar eventos en tiempo real en el navegador mediante Server-Sent Events (SSE).
+    \item Mantener el dashboard y la ECU DoIP arrancados automaticamente con servicios \texttt{systemd}.
+\end{itemize}
+
+\section{Arquitectura General}
+
+El sistema esta dividido en cuatro bloques principales:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Dashboard Flask}: proceso principal en \texttt{server.py}. Sirve la web, la API REST, el endpoint UDS y el stream SSE.
+    \item \textbf{ECU DoIP simulada}: proceso independiente en \texttt{doip\_ecu.py}. Escucha conexiones TCP en \texttt{0.0.0.0:13400}.
+    \item \textbf{Cliente DoIP}: modulo \texttt{doip\_client.py}. Lo usa Flask para enviar tramas UDS a \texttt{127.0.0.1:13400}.
+    \item \textbf{Banco Arduino}: sketch \texttt{arduino\_code.cpp}. Lee entradas fisicas y envia mensajes serie al servidor principal.
+\end{enumerate}
+
+\subsection{Flujo de Lectura UDS}
+
+Cuando el usuario pulsa \texttt{Execute ReadDID} en el dashboard:
+
+\begin{enumerate}[leftmargin=*]
+    \item El navegador envia un \texttt{POST /uds/readDataByIdentifier} con un DID, por ejemplo \texttt{F190}.
+    \item \texttt{server.py} delega la logica en \texttt{routes/api\_routes.py}.
+    \item \texttt{doip\_client.py} construye una trama DoIP con el payload UDS, por ejemplo \texttt{22F190}.
+    \item La trama se envia por TCP a \texttt{127.0.0.1:13400}.
+    \item \texttt{doip\_ecu.py} responde con un UDS positivo, por ejemplo \texttt{62F190...}.
+    \item El dashboard muestra la traza HTTP, UDS y DoIP en la consola diagnostica.
+\end{enumerate}
+
+\section{Estructura del Repositorio}
+
+\begin{longtable}{>{\ttfamily}p{0.34\linewidth} p{0.58\linewidth}}
+\textbf{Archivo o carpeta} & \textbf{Descripcion} \\
+\hline
+\endfirsthead
+\textbf{Archivo o carpeta} & \textbf{Descripcion} \\
+\hline
+\endhead
+server.py & Aplicacion Flask principal. Sirve el dashboard, API REST, endpoint UDS, monitor serie Arduino, endpoints de prueba y SSE. \\
+index.html & Dashboard web con identidad del vehiculo, telemetria, consola diagnostica, controles de simulacion y popups de eventos. \\
+doip\_ecu.py & Simulador de ECU DoIP en TCP \texttt{13400}. Atiende UDS \texttt{ReadDataByIdentifier} y \texttt{WriteDataByIdentifier}. \\
+doip\_client.py & Cliente TCP DoIP usado por el endpoint REST UDS. Envia payloads a \texttt{127.0.0.1:13400}. \\
+arduino\_code.cpp & Codigo Arduino para monitorizar LED trasero, LED frontal, entrada de choque y voltaje de bateria. \\
+routes/api\_routes.py & Logica de rutas API: vehiculo, potencia, componentes, simulacion y lectura UDS. \\
+routes/ui\_routes.py & Mapea \texttt{/} y \texttt{/ui} hacia \texttt{index.html}. \\
+data/simulated\_data.py & Datos en memoria del vehiculo, energia, motor, sensores, componentes y fallos. \\
+data/diagnostic\_trace.py & Buffer de trazas diagnosticas en memoria con \texttt{deque(maxlen=100)}. \\
+ops/run\_forever.sh & Watchdog local que arranca \texttt{server.py} y lo reinicia si termina. \\
+ops/sovd-dashboard.service & Servicio \texttt{systemd} para mantener el dashboard activo al arranque. \\
+ops/sovd-doip-ecu.service & Servicio \texttt{systemd} para mantener activa la ECU DoIP simulada. \\
+ops/README.md & Instrucciones operativas para servicios persistentes y logs. \\
+README.md & Guia general del proyecto, ejecucion, endpoints y verificacion. \\
+AGENTS.md & Contexto tecnico del proyecto y reglas importantes para futuras sesiones de desarrollo. \\
+Dockerfile & Archivo de contenedor incluido en el repositorio. \\
+\end{longtable}
+
+\section{Componentes Principales}
+
+\subsection{\texttt{server.py}}
+
+Es el servidor principal del sistema. Sus responsabilidades son:
+
+\begin{itemize}[leftmargin=*]
+    \item Arrancar Flask en \texttt{0.0.0.0:5000}.
+    \item Servir el dashboard HTML.
+    \item Exponer endpoints REST para consultar y simular estado del vehiculo.
+    \item Recibir peticiones UDS desde el navegador.
+    \item Usar \texttt{doip\_client.py} para comunicarse con la ECU DoIP.
+    \item Escuchar mensajes serie del Arduino.
+    \item Publicar eventos SSE en \texttt{/events}.
+    \item Sincronizar fallos fisicos de LEDs, bateria y choque.
+\end{itemize}
+
+El servidor mantiene estado en memoria mediante diccionarios de Python. No hay
+base de datos. Esto simplifica la demo y permite reiniciar el sistema sin
+persistencia compleja.
+
+\subsection{\texttt{doip\_ecu.py}}
+
+Este modulo simula una ECU que habla DoIP. Escucha en el puerto TCP
+\texttt{13400} y responde a payloads UDS. Esta separado de Flask para evitar que
+compita con \texttt{server.py} por el puerto serie del Arduino.
+
+El ECU soporta:
+
+\begin{itemize}[leftmargin=*]
+    \item \texttt{0x22}: \texttt{ReadDataByIdentifier}.
+    \item \texttt{0x2E}: \texttt{WriteDataByIdentifier}.
+    \item \texttt{0x3E}: \texttt{TesterPresent}.
+\end{itemize}
+
+\subsection{\texttt{index.html}}
+
+Es la interfaz visible del proyecto. Incluye:
+
+\begin{itemize}[leftmargin=*]
+    \item Identidad del vehiculo.
+    \item Telemetria de energia y bus.
+    \item Selector de DID y boton \texttt{Execute ReadDID}.
+    \item Consola diagnostica con trazas HTTP, UDS y DoIP.
+    \item Controles de simulacion de encendido.
+    \item Popups para fallos de LEDs, bateria, choque y restauracion del sistema.
+    \item Conexion SSE a \texttt{/events}.
+\end{itemize}
+
+\subsection{Arduino}
+
+El Arduino representa el banco fisico. El sketch monitoriza:
+
+\begin{longtable}{>{\ttfamily}p{0.18\linewidth} p{0.72\linewidth}}
+\textbf{Pin} & \textbf{Uso} \\
+\hline
+A0 & Estado de conexion del LED trasero. \\
+A2 & Estado de conexion del LED frontal. \\
+D2 & Entrada de choque o touch. \\
+A1 & Potenciometro para voltaje de bateria. \\
+\end{longtable}
+
+Los mensajes se envian por serie a \texttt{9600} baudios. \texttt{server.py}
+busca dispositivos en:
+
+\begin{lstlisting}
+/dev/ttyACM0
+/dev/ttyACM1
+/dev/ttyUSB0
+/dev/ttyUSB1
+\end{lstlisting}
+
+\section{API REST}
+
+\subsection{Vehiculo y Potencia}
+
+\begin{lstlisting}
+GET /vehicle
+GET /vehicle/power
+\end{lstlisting}
+
+Estos endpoints devuelven datos de identidad, ignicion, uptime, temperatura,
+voltaje de bateria, corriente y modo de potencia.
+
+\subsection{Componentes}
+
+\begin{lstlisting}
+GET /components
+GET /components/engine/ident
+GET /components/engine/runtime
+GET /components/engine/sensors
+GET /components/engine/faults
+\end{lstlisting}
+
+Sirven informacion simulada sobre componentes, motor, sensores y fallos.
+
+\subsection{Controles de Simulacion}
+
+\begin{lstlisting}
+GET /ignition/on
+GET /ignition/off
+GET /faults/on
+GET /faults/off
+GET /vehicle/speed
+GET /vehicle/speed/<value>
+\end{lstlisting}
+
+Estos endpoints permiten modificar estado de simulacion desde el navegador. El
+estado iniciado por navegador se mantiene separado por cliente mediante el header
+\texttt{X-SOVD-Client}.
+
+\subsection{Lectura UDS}
+
+\begin{lstlisting}
+POST /uds/readDataByIdentifier
+Content-Type: application/json
+
+{"did": "F190"}
+\end{lstlisting}
+
+Este endpoint convierte la peticion REST en una comunicacion UDS sobre DoIP.
+
+\section{DIDs Soportados}
+
+\begin{longtable}{>{\ttfamily}p{0.18\linewidth} p{0.72\linewidth}}
+\textbf{DID} & \textbf{Significado} \\
+\hline
+F190 & VIN del vehiculo. \\
+F187 & Version de software de ECU. \\
+F18C & Version de hardware de ECU. \\
+F40C & RPM del motor. \\
+F40D & Carga del motor. \\
+F40E & Temperatura del refrigerante. \\
+F1A1 & Ultimo estado del LED trasero. \\
+F1A2 & Ultimo estado del LED frontal. \\
+F1A3 & Ultimo estado de choque. \\
+F1A4 & Ultimo estado de bateria. \\
+\end{longtable}
+
+Los DIDs \texttt{F1A1} a \texttt{F1A4} tambien se actualizan mediante UDS
+\texttt{WriteDataByIdentifier}. Por ejemplo, cuando el LED trasero cambia a
+fallo, el servidor envia un payload como:
+
+\begin{lstlisting}
+2E F1 A1 4C 45 44 5F 52 45 41 52 3A ...
+\end{lstlisting}
+
+La ECU responde positivamente con:
+
+\begin{lstlisting}
+6E F1 A1
+\end{lstlisting}
+
+\section{Eventos en Tiempo Real}
+
+El endpoint:
+
+\begin{lstlisting}
+GET /events
+\end{lstlisting}
+
+usa Server-Sent Events. Emite mensajes crudos como:
+
+\begin{lstlisting}
+data: LED_REAR:FAULT
+data: LED_FRONT:FAULT
+data: BATTERY:UNDERVOLTAGE:10.8
+data: BATTERY:OVERVOLTAGE:14.8
+data: CRASH:FAULT:66
+data: SYSTEM:OK
+\end{lstlisting}
+
+Cuando el navegador se reconecta o refresca la pagina, el servidor reenvia los
+fallos fisicos activos. Esto evita que la interfaz muestre el sistema restaurado
+cuando todavia hay un LED desconectado o un voltaje fuera de rango.
+
+\section{Logica de Fallos}
+
+\subsection{LEDs}
+
+Los LEDs pueden generar:
+
+\begin{lstlisting}
+LED_REAR:FAULT
+LED_REAR:OK
+LED_FRONT:FAULT
+LED_FRONT:OK
+\end{lstlisting}
+
+Cuando aparece un fallo, el dashboard muestra un popup y activa el fondo rojo de
+fallo. Cuando el fallo se restaura, el sistema solo muestra \texttt{SYSTEM:OK}
+si no queda ningun otro fallo fisico activo.
+
+\subsection{Bateria}
+
+La bateria se evalua por voltaje:
+
+\begin{lstlisting}
+11.0 V <= voltage <= 14.5 V
+\end{lstlisting}
+
+\begin{itemize}[leftmargin=*]
+    \item Por debajo de \texttt{11.0 V}: \texttt{UNDERVOLTAGE}.
+    \item Por encima de \texttt{14.5 V}: \texttt{OVERVOLTAGE}.
+    \item Dentro del rango: \texttt{NORMAL}.
+\end{itemize}
+
+Es importante mantener estos umbrales alineados entre \texttt{arduino\_code.cpp},
+\texttt{server.py} e \texttt{index.html}.
+
+\subsection{Choque}
+
+El evento de choque usa mensajes como:
+
+\begin{lstlisting}
+CRASH:FAULT:<duration_ms>
+\end{lstlisting}
+
+El dashboard muestra un popup de choque y marca el sistema como en fallo hasta
+que el estado vuelve a la normalidad.
+
+\section{Trazas Diagnosticas}
+
+Las trazas se almacenan en \texttt{data/diagnostic\_trace.py} usando un
+\texttt{deque(maxlen=100)}. El dashboard las muestra como una consola tipo
+terminal.
+
+Los eventos fisicos del banco son globales para todos los navegadores. En
+cambio, las acciones iniciadas por navegador usan un identificador de cliente
+almacenado en \texttt{localStorage} y enviado como \texttt{X-SOVD-Client}. Esto
+permite que una lectura UDS hecha por un usuario no ensucie la consola de otro.
+
+El boton \texttt{Clean Console} solo limpia visualmente la consola del navegador
+actual. No borra el buffer compartido en memoria.
+
+\section{Ejecucion Manual}
+
+Para ejecutar el simulador DoIP:
+
+\begin{lstlisting}
+python3 doip_ecu.py
+\end{lstlisting}
+
+Para ejecutar el dashboard:
+
+\begin{lstlisting}
+python3 server.py
+\end{lstlisting}
+
+El dashboard queda disponible en:
+
+\begin{lstlisting}
+http://localhost:5000/
+\end{lstlisting}
+
+Si se accede desde otro ordenador de la misma red, hay que usar la IP de la
+Raspberry:
+
+\begin{lstlisting}
+http://<raspberry-pi-ip>:5000/
+\end{lstlisting}
+
+En redes de invitados o redes con aislamiento entre clientes, la IP local puede
+no ser accesible desde otros dispositivos. En ese caso se usa ngrok como acceso
+de presentacion.
+
+\section{Servicios Persistentes}
+
+El proyecto incluye unidades \texttt{systemd} para que el sistema funcione sin
+tener que ejecutar comandos manuales.
+
+\subsection{Dashboard}
+
+\begin{lstlisting}
+sudo cp ops/sovd-dashboard.service /etc/systemd/system/sovd-dashboard.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now sovd-dashboard.service
+sudo systemctl status sovd-dashboard.service
+\end{lstlisting}
+
+Logs:
+
+\begin{lstlisting}
+logs/server.log
+logs/watchdog.log
+\end{lstlisting}
+
+\subsection{ECU DoIP}
+
+\begin{lstlisting}
+sudo cp ops/sovd-doip-ecu.service /etc/systemd/system/sovd-doip-ecu.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now sovd-doip-ecu.service
+sudo systemctl status sovd-doip-ecu.service
+\end{lstlisting}
+
+Logs:
+
+\begin{lstlisting}
+logs/doip_ecu.log
+\end{lstlisting}
+
+\section{Acceso con ngrok}
+
+El contexto del proyecto indica que para presentaciones se debe usar ngrok como
+metodo principal de acceso desde navegador. El dashboard puede exponerse mediante
+un tunel HTTP que apunta a:
+
+\begin{lstlisting}
+http://localhost:5000
+\end{lstlisting}
+
+Una URL publica usada en la demo es:
+
+\begin{lstlisting}
+https://684ad3b98246.ngrok.app/
+\end{lstlisting}
+
+La ventaja de ngrok es que evita problemas de redes locales, IPs cambiantes o
+redes de invitados que bloquean conexiones entre dispositivos.
+
+\section{Pruebas sin Arduino}
+
+Para probar notificaciones de LED sin hardware:
+
+\begin{lstlisting}
+http://localhost:5000/test/fault
+http://localhost:5000/test/ok
+\end{lstlisting}
+
+Si se usa ngrok, se sustituyen por la URL publica:
+
+\begin{lstlisting}
+https://<ngrok-dashboard-url>/test/fault
+https://<ngrok-dashboard-url>/test/ok
+\end{lstlisting}
+
+\section{Verificacion}
+
+\subsection{Comprobacion de Sintaxis Python}
+
+\begin{lstlisting}
+find . -maxdepth 3 -type f -name '*.py' -print0 | xargs -0 -n1 python3 -m py_compile
+\end{lstlisting}
+
+\subsection{Comprobacion de Endpoints}
+
+\begin{lstlisting}
+curl http://localhost:5000/vehicle
+curl http://localhost:5000/test/fault
+curl http://localhost:5000/test/ok
+\end{lstlisting}
+
+\subsection{Comprobacion SSE}
+
+\begin{lstlisting}
+curl --max-time 2 http://localhost:5000/events
+\end{lstlisting}
+
+\subsection{Comprobacion ReadDID}
+
+\begin{lstlisting}
+curl -X POST http://localhost:5000/uds/readDataByIdentifier \
+  -H 'Content-Type: application/json' \
+  -d '{"did":"F190"}'
+\end{lstlisting}
+
+Una respuesta correcta para \texttt{F190} devuelve el VIN simulado:
+
+\begin{lstlisting}
+WVWZZZ12345678901
+\end{lstlisting}
+
+\section{Problemas Conocidos y Precauciones}
+
+\begin{itemize}[leftmargin=*]
+    \item El dashboard y la ECU DoIP son servidores de desarrollo/demo, no servicios de produccion.
+    \item El estado se guarda en memoria; al reiniciar los procesos se vuelve al estado inicial.
+    \item \texttt{server.py} debe ser el unico proceso que abre el puerto serie del Arduino.
+    \item \texttt{doip\_ecu.py} debe mantenerse centrado en DoIP/UDS y no asumir responsabilidades de Flask ni serial.
+    \item Si \texttt{Execute ReadDID} muestra \texttt{Connection refused}, normalmente falta arrancar \texttt{doip\_ecu.py} o el servicio \texttt{sovd-doip-ecu.service}.
+    \item Si \texttt{localhost:5000} no abre desde un ordenador externo, recordar que \texttt{localhost} apunta al propio ordenador, no a la Raspberry.
+    \item Si \texttt{http://<ip-raspberry>:5000} se queda cargando desde otro equipo, puede haber aislamiento de clientes en la WiFi.
+    \item Los mensajes SSE perdidos no deben dejar la interfaz bloqueada en rojo si los datos actuales son normales.
+\end{itemize}
+
+\section{Resumen Final}
+
+El proyecto implementa una maqueta completa de diagnostico vehicular:
+
+\begin{itemize}[leftmargin=*]
+    \item Una web Flask para visualizar estado y ejecutar diagnostico.
+    \item Una ECU DoIP simulada que responde a servicios UDS.
+    \item Integracion con Arduino para eventos fisicos.
+    \item Comunicacion en tiempo real con SSE.
+    \item Servicios persistentes para que el sistema arranque solo.
+\end{itemize}
+
+Esta separacion permite explicar de forma clara la relacion entre REST, SOVD,
+DoIP, UDS y eventos fisicos de una maqueta de vehiculo.
+
+\end{document}

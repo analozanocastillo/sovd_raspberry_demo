@@ -1,0 +1,17 @@
+[Unit]
+Description=SOVD dashboard web server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sovd_user
+WorkingDirectory=/home/sovd_user/sovd_practice
+ExecStart=/home/sovd_user/sovd_practice/ops/run_forever.sh
+Restart=always
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

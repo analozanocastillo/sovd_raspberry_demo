@@ -117,6 +117,28 @@ Open:
 http://localhost:5000/
 ```
 
+### Keep The Dashboard Always Running
+
+For a supervised local run that restarts the Flask server if it exits:
+
+```bash
+./ops/run_forever.sh
+```
+
+For a permanent boot-time service, install the included `systemd` unit:
+
+```bash
+sudo cp ops/sovd-dashboard.service /etc/systemd/system/sovd-dashboard.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now sovd-dashboard.service
+```
+
+Logs are available through `systemd`:
+
+```text
+journalctl -u sovd-dashboard.service
+```
+
 On a Raspberry Pi or another device on the same network, replace `localhost` with the Raspberry Pi IP address:
 
 ```text
@@ -312,4 +334,3 @@ curl --max-time 2 http://localhost:5000/events
 ```
 
 ---
-
